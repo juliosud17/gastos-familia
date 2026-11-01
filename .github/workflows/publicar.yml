@@ -1,0 +1,51 @@
+name: Publicar Caderneta
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Descompactar o zip, se existir
+        run: |
+          if [ -f caderneta.zip ]; then
+            unzip -q caderneta.zip -d "$RUNNER_TEMP/z"
+            rsync -a --exclude .git --exclude .github "$RUNNER_TEMP/z/gastos-familia/" ./
+            git rm -q caderneta.zip
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -q -m "Descompacta a Caderneta"
+            git push
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
