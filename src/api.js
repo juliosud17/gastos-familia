@@ -11,12 +11,25 @@ export const apiReal = {
   async base(userId) {
     const membro = ok(await supabase.from('membros').select('*').eq('user_id', userId).maybeSingle())
     if (!membro) return null
-    const [familia, membros, categorias] = await Promise.all([
+    const [familia, membros, categorias, contas] = await Promise.all([
       supabase.from('familias').select('*').eq('id', membro.familia_id).single().then(ok),
       supabase.from('membros').select('user_id, nome, cor').eq('familia_id', membro.familia_id).order('created_at').then(ok),
       supabase.from('categorias').select('*').eq('familia_id', membro.familia_id).order('ordem').then(ok),
+      supabase.from('contas').select('*').eq('familia_id', membro.familia_id).order('ordem').then(ok),
     ])
-    return { membro, familia, membros, categorias }
+    return { membro, familia, membros, categorias, contas }
+  },
+  async saldos(familiaId) {
+    const linhas = ok(await supabase.from('saldos_contas').select('id, saldo').eq('familia_id', familiaId))
+    return Object.fromEntries(linhas.map((l) => [l.id, +l.saldo]))
+  },
+  async salvarConta(c) {
+    const { id, ...campos } = c
+    if (id) return ok(await supabase.from('contas').update(campos).eq('id', id).select().single())
+    return ok(await supabase.from('contas').insert(campos).select().single())
+  },
+  async excluirConta(id) {
+    ok(await supabase.from('contas').delete().eq('id', id))
   },
   async mes(familiaId, ano, mes) {
     const [ini, fim] = limitesMes(ano, mes)
@@ -88,30 +101,40 @@ function semente() {
     cat('Salário', '💼', 'receita', 1), cat('Extra', '💰', 'receita', 2), cat('Outros', '📦', 'receita', 3),
   ]
   const c = (n) => categorias.find((x) => x.nome === n).id
+  const conta = (nome, emoji, tipo, ordem, saldo_inicial) => ({ id: uid(), familia_id: fam, nome, emoji, tipo, ordem, saldo_inicial })
+  const contas = [
+    conta('Dinheiro', '💵', 'dinheiro', 1, 380),
+    conta('Nubank', '💜', 'banco', 2, 2100),
+    conta('Caixa', '🏦', 'banco', 3, 5400),
+  ]
+  const [esp, nu, cx] = contas.map((x) => x.id)
   // Datas sempre dentro do mês atual, para a demonstração ter conteúdo
   const hoje = new Date().getDate()
-  const l = (dias, tipo, valor, cn, desc, quem) => {
+  const l = (dias, tipo, valor, cn, desc, quem, conta_id, conta_destino_id = null) => {
     const d = Math.min(dias, hoje - 1)
-    return { id: uid(), familia_id: fam, tipo, valor, categoria_id: c(cn), descricao: desc, data: diasAtras(d), user_id: quem, created_at: new Date(Date.now() - dias * 864e5).toISOString() }
+    return { id: uid(), familia_id: fam, tipo, valor, categoria_id: cn ? c(cn) : null, descricao: desc, data: diasAtras(d), user_id: quem, conta_id, conta_destino_id, created_at: new Date(Date.now() - dias * 864e5).toISOString() }
   }
   const lancamentos = [
-    l(0, 'despesa', 85.4, 'Mercado', 'Feira', 'ela'),
-    l(0, 'despesa', 32, 'Lazer', 'Pizza', 'eu'),
-    l(1, 'despesa', 189.9, 'Contas', 'Luz', 'eu'),
-    l(1, 'despesa', 60, 'Transporte', 'Gasolina', 'ela'),
-    l(2, 'despesa', 412.35, 'Mercado', 'Compra do mês', 'eu'),
-    l(3, 'despesa', 47.8, 'Saúde', 'Farmácia', 'ela'),
-    l(4, 'receita', 650, 'Extra', 'Freela', 'eu'),
-    l(5, 'despesa', 1500, 'Casa', 'Aluguel', 'eu'),
-    l(6, 'despesa', 119.9, 'Contas', 'Internet', 'eu'),
-    l(7, 'receita', 4200, 'Salário', null, 'ela'),
-    l(7, 'receita', 3800, 'Salário', null, 'eu'),
+    l(0, 'despesa', 85.4, 'Mercado', 'Feira', 'ela', esp),
+    l(0, 'despesa', 32, 'Lazer', 'Pizza', 'eu', nu),
+    l(1, 'transferencia', 200, null, 'Saque', 'ela', nu, esp),
+    l(1, 'despesa', 189.9, 'Contas', 'Luz', 'eu', cx),
+    l(1, 'despesa', 60, 'Transporte', 'Gasolina', 'ela', nu),
+    l(2, 'despesa', 412.35, 'Mercado', 'Compra do mês', 'eu', nu),
+    l(3, 'despesa', 47.8, 'Saúde', 'Farmácia', 'ela', esp),
+    l(4, 'receita', 650, 'Extra', 'Freela', 'eu', nu),
+    l(5, 'despesa', 1500, 'Casa', 'Aluguel', 'eu', cx),
+    l(5, 'transferencia', 800, null, 'Guardar', 'eu', nu, cx),
+    l(6, 'despesa', 119.9, 'Contas', 'Internet', 'eu', nu),
+    l(7, 'receita', 4200, 'Salário', null, 'ela', cx),
+    l(7, 'receita', 3800, 'Salário', null, 'eu', nu),
   ]
   return {
     membro: { ...eu, familia_id: fam, token_atalho: 'demo0000demo0000demo0000demo0000' },
     familia: { id: fam, nome: 'Casa Antunes', codigo: 'K7Q2MX' },
     membros: [eu, ela],
     categorias,
+    contas,
     lancamentos,
   }
 }
@@ -123,7 +146,28 @@ export function criarApiDemo() {
   return {
     demo: true,
     async base() {
-      return { membro: db.membro, familia: db.familia, membros: db.membros, categorias: [...db.categorias] }
+      return { membro: db.membro, familia: db.familia, membros: db.membros, categorias: [...db.categorias], contas: [...db.contas] }
+    },
+    async saldos() {
+      const r = Object.fromEntries(db.contas.map((c) => [c.id, +c.saldo_inicial]))
+      for (const l of db.lancamentos) {
+        if (l.conta_id in r) r[l.conta_id] += l.tipo === 'receita' ? +l.valor : -l.valor
+        if (l.tipo === 'transferencia' && l.conta_destino_id in r) r[l.conta_destino_id] += +l.valor
+      }
+      return r
+    },
+    async salvarConta(c) {
+      if (c.id) {
+        const i = db.contas.findIndex((x) => x.id === c.id)
+        db.contas[i] = { ...db.contas[i], ...c }
+      } else db.contas.push({ ...c, id: uid() })
+    },
+    async excluirConta(id) {
+      db.contas = db.contas.filter((c) => c.id !== id)
+      for (const l of db.lancamentos) {
+        if (l.conta_id === id) l.conta_id = null
+        if (l.conta_destino_id === id) l.conta_destino_id = null
+      }
     },
     async mes(_f, ano, mes) {
       const [ini, fim] = limitesMes(ano, mes)

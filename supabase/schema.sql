@@ -4,14 +4,13 @@
 -- Pode rodar de novo sem problema (as funções são recriadas).
 -- =============================================================
 
-create extension if not exists pgcrypto;
 
 -- ---------- Tabelas ----------
 
 create table if not exists familias (
   id         uuid primary key default gen_random_uuid(),
   nome       text not null,
-  codigo     text not null unique default upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6)),
+  codigo     text not null unique default upper(substr(md5(gen_random_uuid()::text), 1, 6)),
   created_at timestamptz not null default now()
 );
 
@@ -20,7 +19,7 @@ create table if not exists membros (
   familia_id   uuid not null references familias on delete cascade,
   nome         text not null,
   cor          text not null default '#2346B8',
-  token_atalho text not null unique default encode(gen_random_bytes(16), 'hex'),
+  token_atalho text not null unique default replace(gen_random_uuid()::text, '-', ''),
   created_at   timestamptz not null default now()
 );
 
@@ -46,6 +45,10 @@ create table if not exists lancamentos (
   origem       text not null default 'app',
   created_at   timestamptz not null default now()
 );
+
+-- Garante os valores padrão certos mesmo se as tabelas já existiam
+alter table familias alter column codigo set default upper(substr(md5(gen_random_uuid()::text), 1, 6));
+alter table membros alter column token_atalho set default replace(gen_random_uuid()::text, '-', '');
 
 create index if not exists lancamentos_familia_data on lancamentos (familia_id, data desc);
 create index if not exists categorias_familia on categorias (familia_id, tipo, ordem);
@@ -150,7 +153,7 @@ end $$;
 
 create or replace function novo_token_atalho() returns text
 language sql security definer set search_path = public as $$
-  update membros set token_atalho = encode(gen_random_bytes(16), 'hex')
+  update membros set token_atalho = replace(gen_random_uuid()::text, '-', '')
   where user_id = auth.uid() returning token_atalho
 $$;
 

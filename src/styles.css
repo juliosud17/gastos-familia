@@ -1038,3 +1038,85 @@ p {
     transition: none !important;
   }
 }
+
+/* ---------- Contas (atualização 2) ---------- */
+
+.topo {
+  position: relative;
+}
+
+.botao-ajustes {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top));
+  right: 8px;
+}
+
+.botao-ajustes.ativo {
+  color: var(--tinta);
+  background: var(--pauta);
+}
+
+.tinta-neutra {
+  color: var(--tinta-suave);
+}
+
+.linha-guardado {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  line-height: 40px;
+  color: var(--tinta-suave);
+  font-size: 14px;
+}
+
+.linha-guardado strong {
+  color: var(--tinta);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.linha-guardado::after {
+  content: '›';
+  font-size: 20px;
+  color: var(--tinta-suave);
+}
+
+.detalhe-texto {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.linha-detalhe {
+  min-width: 0;
+}
+
+.rotulo-grupo {
+  width: 100%;
+  padding: 0;
+  margin-bottom: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tinta-suave);
+}
+
+.tom-tinta .valor-grande input {
+  color: var(--tinta);
+}
+
+.tom-tinta .valor-grande:focus-within {
+  border-color: var(--tinta);
+}
+
+.nota-contas {
+  margin: 12px 0;
+}
+
+.entrou-saiu {
+  flex-wrap: wrap;
+  column-gap: 28px;
+  row-gap: 0;
+}
+
+.entrou-saiu span {
+  white-space: nowrap;
+}

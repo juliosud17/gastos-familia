@@ -10,11 +10,36 @@ function paraCentavos(v) {
   return n > 0 ? String(Math.round(n * 100)) : ''
 }
 
-export default function Lancar({ inicial, categorias, membros, eu, aoSalvar, aoExcluir, aoFechar }) {
+const CHAVE_CONTA = 'caderneta-ultima-conta'
+function lerUltimaConta() {
+  try {
+    return localStorage.getItem(CHAVE_CONTA)
+  } catch {
+    return null
+  }
+}
+function guardarUltimaConta(id) {
+  try {
+    if (id) localStorage.setItem(CHAVE_CONTA, id)
+  } catch {}
+}
+
+const TITULOS = {
+  despesa: ['Anotar gasto', 'Anotar gasto'],
+  receita: ['Anotar entrada', 'Anotar entrada'],
+  transferencia: ['Transferir entre contas', 'Transferir'],
+}
+
+export default function Lancar({ inicial, categorias, contas, membros, eu, aoSalvar, aoExcluir, aoFechar }) {
   const ed = inicial.editar
+  const ultima = lerUltimaConta()
+  const contaPadrao = contas.some((c) => c.id === ultima) ? ultima : contas[0]?.id || null
+
   const [tipo, setTipo] = useState(ed?.tipo || inicial.tipo || 'despesa')
   const [centavos, setCentavos] = useState(ed ? paraCentavos(ed.valor) : paraCentavos(inicial.valor))
   const [categoriaId, setCategoriaId] = useState(ed?.categoria_id || null)
+  const [contaId, setContaId] = useState(ed ? ed.conta_id : inicial.conta_id || contaPadrao)
+  const [destinoId, setDestinoId] = useState(ed?.conta_destino_id || null)
   const [descricao, setDescricao] = useState(ed?.descricao || '')
   const [data, setData] = useState(ed?.data || hojeISO())
   const [quem, setQuem] = useState(ed?.user_id || eu)
@@ -27,13 +52,21 @@ export default function Lancar({ inicial, categorias, membros, eu, aoSalvar, aoE
     if (!ed) campoValor.current?.focus()
   }, [ed])
 
+  const transferencia = tipo === 'transferencia'
+  const despesa = tipo === 'despesa'
   const daVez = categorias.filter((c) => c.tipo === tipo)
+
   useEffect(() => {
     if (categoriaId && !daVez.some((c) => c.id === categoriaId)) setCategoriaId(null)
+    if (tipo === 'transferencia' && !destinoId) setDestinoId(contas.find((c) => c.id !== contaId)?.id || null)
   }, [tipo]) // eslint-disable-line
 
+  // Se a conta de origem virar a mesma do destino, troca o destino
+  useEffect(() => {
+    if (transferencia && destinoId === contaId) setDestinoId(contas.find((c) => c.id !== contaId)?.id || null)
+  }, [contaId]) // eslint-disable-line
+
   const valor = (Number(centavos) || 0) / 100
-  const despesa = tipo === 'despesa'
 
   async function salvar(e) {
     e.preventDefault()
@@ -42,14 +75,19 @@ export default function Lancar({ inicial, categorias, membros, eu, aoSalvar, aoE
       campoValor.current?.focus()
       return
     }
+    if (transferencia && (!contaId || !destinoId)) return setErro('Escolha de qual conta sai e para qual vai.')
+    if (transferencia && contaId === destinoId) return setErro('As duas contas precisam ser diferentes.')
     setEnviando(true)
     setErro('')
     try {
+      if (!transferencia) guardarUltimaConta(contaId)
       await aoSalvar({
         id: ed?.id,
         tipo,
         valor,
-        categoria_id: categoriaId,
+        categoria_id: transferencia ? null : categoriaId,
+        conta_id: contaId,
+        conta_destino_id: transferencia ? destinoId : null,
         descricao: descricao.trim() || null,
         data,
         user_id: quem,
@@ -60,12 +98,17 @@ export default function Lancar({ inicial, categorias, membros, eu, aoSalvar, aoE
     }
   }
 
+  const tom = transferencia ? 'tom-tinta' : despesa ? 'tom-vermelho' : 'tom-azul'
+
   return (
-    <Folha titulo={ed ? 'Editar anotação' : despesa ? 'Anotar gasto' : 'Anotar entrada'} aoFechar={aoFechar} classe={despesa ? 'tom-vermelho' : 'tom-azul'}>
+    <Folha titulo={ed ? 'Editar anotação' : TITULOS[tipo][0]} aoFechar={aoFechar} classe={tom}>
       <form className="formulario" onSubmit={salvar}>
         <div className="segmento tipo">
           <button type="button" aria-pressed={despesa} className="opcao-gasto" onClick={() => setTipo('despesa')}>Gasto</button>
-          <button type="button" aria-pressed={!despesa} className="opcao-entrada" onClick={() => setTipo('receita')}>Entrada</button>
+          <button type="button" aria-pressed={tipo === 'receita'} className="opcao-entrada" onClick={() => setTipo('receita')}>Entrada</button>
+          {contas.length > 1 && (
+            <button type="button" aria-pressed={transferencia} onClick={() => setTipo('transferencia')}>Transferir</button>
+          )}
         </div>
 
         <label className="valor-grande">
@@ -81,25 +124,44 @@ export default function Lancar({ inicial, categorias, membros, eu, aoSalvar, aoE
           />
         </label>
 
-        <fieldset className="grade-categorias">
-          <legend className="visualmente-oculto">Categoria</legend>
-          {daVez.map((c) => (
-            <button
-              type="button"
-              key={c.id}
-              className="cat"
-              aria-pressed={categoriaId === c.id}
-              onClick={() => setCategoriaId(categoriaId === c.id ? null : c.id)}
-            >
-              <span aria-hidden="true">{c.emoji}</span>
-              {c.nome}
-            </button>
-          ))}
-        </fieldset>
+        {contas.length > 0 && (
+          <EscolhaConta
+            rotulo={transferencia ? 'Sai de' : despesa ? 'Saiu de' : 'Entrou em'}
+            contas={contas}
+            valor={contaId}
+            aoEscolher={setContaId}
+            permiteNenhuma={!transferencia}
+          />
+        )}
+        {transferencia && (
+          <EscolhaConta rotulo="Vai para" contas={contas.filter((c) => c.id !== contaId)} valor={destinoId} aoEscolher={setDestinoId} />
+        )}
+
+        {!transferencia && (
+          <fieldset className="grade-categorias">
+            <legend className="rotulo-grupo">Categoria</legend>
+            {daVez.map((c) => (
+              <button
+                type="button"
+                key={c.id}
+                className="cat"
+                aria-pressed={categoriaId === c.id}
+                onClick={() => setCategoriaId(categoriaId === c.id ? null : c.id)}
+              >
+                <span aria-hidden="true">{c.emoji}</span>
+                {c.nome}
+              </button>
+            ))}
+          </fieldset>
+        )}
 
         <label className="campo">
           <span>Descrição (opcional)</span>
-          <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder={despesa ? 'Ex.: feira, luz, farmácia' : 'Ex.: salário, freela'} />
+          <input
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            placeholder={transferencia ? 'Ex.: saque, guardar na poupança' : despesa ? 'Ex.: feira, luz, farmácia' : 'Ex.: salário, freela'}
+          />
         </label>
 
         <div className="linha-campos">
@@ -121,8 +183,8 @@ export default function Lancar({ inicial, categorias, membros, eu, aoSalvar, aoE
 
         {erro && <p className="aviso erro">{erro}</p>}
 
-        <button className={'botao principal ' + (despesa ? 'vermelho' : 'azul')} disabled={enviando}>
-          {enviando ? 'Salvando…' : ed ? 'Salvar alterações' : despesa ? 'Anotar gasto' : 'Anotar entrada'}
+        <button className={'botao principal ' + (transferencia ? '' : despesa ? 'vermelho' : 'azul')} disabled={enviando}>
+          {enviando ? 'Salvando…' : ed ? 'Salvar alterações' : TITULOS[tipo][1]}
         </button>
 
         {ed &&
@@ -133,5 +195,25 @@ export default function Lancar({ inicial, categorias, membros, eu, aoSalvar, aoE
           ))}
       </form>
     </Folha>
+  )
+}
+
+function EscolhaConta({ rotulo, contas, valor, aoEscolher, permiteNenhuma }) {
+  return (
+    <fieldset className="grade-categorias contas-escolha">
+      <legend className="rotulo-grupo">{rotulo}</legend>
+      {contas.map((c) => (
+        <button
+          type="button"
+          key={c.id}
+          className="cat"
+          aria-pressed={valor === c.id}
+          onClick={() => aoEscolher(permiteNenhuma && valor === c.id ? null : c.id)}
+        >
+          <span aria-hidden="true">{c.emoji}</span>
+          {c.nome}
+        </button>
+      ))}
+    </fieldset>
   )
 }

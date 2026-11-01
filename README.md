@@ -4,6 +4,7 @@ Controle de gastos mensal da família. Todo mundo anota no mesmo lugar, pelo cel
 
 - **Início**: sobra do mês, quanto entrou e quanto saiu, últimas anotações
 - **Extrato**: tudo do mês por dia, com filtro de gastos, entradas e por pessoa
+- **Contas**: quanto tem guardado em dinheiro em espécie e em cada banco, com transferência entre elas
 - **Categorias**: quanto foi para cada categoria, com limite mensal opcional
 - **Ajustes**: convite da família, nomes e a chave do atalho do iPhone
 - **Atalho na tela de início do iPhone**: anota um gasto em 2 toques, sem abrir o app
@@ -17,6 +18,7 @@ Quer ver antes de configurar? Abra o app com `?demo` no fim do endereço.
 
 1. Crie uma conta em [supabase.com](https://supabase.com) e um projeto novo (região São Paulo).
 2. No projeto, abra **SQL Editor → New query**, cole todo o conteúdo de [`supabase/schema.sql`](supabase/schema.sql) e clique em **Run**.
+   Depois faça o mesmo com [`supabase/02-contas.sql`](supabase/02-contas.sql) (contas e transferências).
 3. Em **Project Settings → API**, anote:
    - **Project URL** (ex.: `https://abcd1234.supabase.co`)
    - **Publishable key** (chave pública; pode ficar no app sem problema, a segurança vem das regras do banco)
@@ -70,11 +72,15 @@ No app **Atalhos**, toque em **+** e adicione, nesta ordem:
      - `p_tipo` = `despesa`
      - `p_valor` = *Entrada Fornecida*
      - `p_categoria` = *Item Escolhido*
+     - `p_conta` = nome da conta, como `Dinheiro` ou `Nubank` (opcional)
 5. **Obter Valor do Dicionário**: chave `mensagem`, do *Conteúdo do URL*.
 6. **Mostrar Notificação** com o *Valor do Dicionário*.
 
 Renomeie o atalho para **Gasto** e escolha um ícone. Ao rodar, aparece algo como:
 *Gasto de R$ 85,40 em 🛒 Mercado salvo. Sobra de novembro: R$ 1.240,50*
+
+Quer escolher a conta na hora? Antes do passo 4, repita os passos 1 e 2 com o endereço
+`.../rest/v1/rpc/listar_contas` e corpo só com `p_token`, e use o *Item Escolhido* em `p_conta`.
 
 ### Atalho “Entrada”
 
@@ -101,6 +107,12 @@ Se não quiser montar o atalho, crie um atalho com só a ação **Abrir URLs** a
 
 ---
 
+## Atualizar o app pelo celular
+
+1. Rode no Supabase o SQL novo da atualização, se houver.
+2. No GitHub, em **Add file → Upload files**, envie o novo `caderneta.zip`.
+3. A Action **Publicar Caderneta** descompacta, apaga o zip e publica sozinha.
+
 ## Desenvolver no computador
 
 ```bash
@@ -115,7 +127,8 @@ npm run dev
 supabase/schema.sql   tabelas, regras de acesso e funções do atalho
 src/App.jsx           entrada, criação/convite da família
 src/Painel.jsx        Início, Extrato, Categorias, Ajustes
-src/Lancar.jsx        tela de anotar gasto ou entrada
+src/Lancar.jsx        tela de anotar gasto, entrada ou transferência
+src/Contas.jsx        contas, saldos e ajuste de saldo
 src/api.js            acesso ao Supabase (e dados da demonstração)
 public/sw.js          deixa o app abrir rápido e sem internet
 ```

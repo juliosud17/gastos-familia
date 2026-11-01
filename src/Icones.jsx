@@ -18,3 +18,6 @@ export const IconeMais = () => (
 export const Seta = ({ dir }) => (
   <svg {...p} strokeWidth={2}>{dir === 'esq' ? <path d="M15 5l-7 7 7 7" /> : <path d="M9 5l7 7-7 7" />}</svg>
 )
+export const IconeCofre = () => (
+  <svg {...p}><rect x="4" y="6" width="16" height="13" rx="2" /><circle cx="12" cy="12.5" r="2.5" /><path d="M7 19v1.5M17 19v1.5M12 6V4" /></svg>
+)

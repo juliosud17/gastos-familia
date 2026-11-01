@@ -56,3 +56,12 @@ export function textoErro(err) {
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Sem conexão. Verifique a internet e tente de novo.'
   return m
 }
+
+// Quanto a anotação mexe no saldo (de uma conta, ou da casa toda)
+export function efeito(l, conta = 'todas') {
+  if (l.tipo === 'transferencia') {
+    if (conta === 'todas') return 0
+    return l.conta_id === conta ? -l.valor : +l.valor
+  }
+  return l.tipo === 'receita' ? +l.valor : -l.valor
+}
