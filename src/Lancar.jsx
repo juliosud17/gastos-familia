@@ -37,10 +37,10 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
 
   const [tipo, setTipo] = useState(ed?.tipo || inicial.tipo || 'despesa')
   const [centavos, setCentavos] = useState(ed ? paraCentavos(ed.valor) : paraCentavos(inicial.valor))
-  const [categoriaId, setCategoriaId] = useState(ed?.categoria_id || null)
+  const [categoriaId, setCategoriaId] = useState(ed?.categoria_id || inicial.categoria_id || null)
   const [contaId, setContaId] = useState(ed ? ed.conta_id : inicial.conta_id || contaPadrao)
   const [destinoId, setDestinoId] = useState(ed?.conta_destino_id || null)
-  const [descricao, setDescricao] = useState(ed?.descricao || '')
+  const [descricao, setDescricao] = useState(ed?.descricao || inicial.descricao || '')
   const [data, setData] = useState(ed?.data || hojeISO())
   const [quem, setQuem] = useState(ed?.user_id || eu)
   const [enviando, setEnviando] = useState(false)
@@ -91,6 +91,7 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
         descricao: descricao.trim() || null,
         data,
         user_id: quem,
+        ...(!ed && inicial.compromisso_id ? { compromisso_id: inicial.compromisso_id, referencia: inicial.referencia } : {}),
       })
     } catch (err) {
       setErro(textoErro(err))
@@ -101,15 +102,15 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
   const tom = transferencia ? 'tom-tinta' : despesa ? 'tom-vermelho' : 'tom-azul'
 
   return (
-    <Folha titulo={ed ? 'Editar anotação' : TITULOS[tipo][0]} aoFechar={aoFechar} classe={tom}>
+    <Folha titulo={ed ? 'Editar anotação' : inicial.titulo || TITULOS[tipo][0]} aoFechar={aoFechar} classe={tom}>
       <form className="formulario" onSubmit={salvar}>
-        <div className="segmento tipo">
+        {!inicial.compromisso_id && <div className="segmento tipo">
           <button type="button" aria-pressed={despesa} className="opcao-gasto" onClick={() => setTipo('despesa')}>Gasto</button>
           <button type="button" aria-pressed={tipo === 'receita'} className="opcao-entrada" onClick={() => setTipo('receita')}>Entrada</button>
           {contas.length > 1 && (
             <button type="button" aria-pressed={transferencia} onClick={() => setTipo('transferencia')}>Transferir</button>
           )}
-        </div>
+        </div>}
 
         <label className="valor-grande">
           <span className="visualmente-oculto">Valor</span>
@@ -184,7 +185,7 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
         {erro && <p className="aviso erro">{erro}</p>}
 
         <button className={'botao principal ' + (transferencia ? '' : despesa ? 'vermelho' : 'azul')} disabled={enviando}>
-          {enviando ? 'Salvando…' : ed ? 'Salvar alterações' : TITULOS[tipo][1]}
+          {enviando ? 'Salvando…' : ed ? 'Salvar alterações' : inicial.compromisso_id ? 'Marcar como pago' : TITULOS[tipo][1]}
         </button>
 
         {ed &&

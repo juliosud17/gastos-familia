@@ -65,3 +65,69 @@ export function efeito(l, conta = 'todas') {
   }
   return l.tipo === 'receita' ? +l.valor : -l.valor
 }
+
+// ---------- Contas a pagar ----------
+
+const idxMes = (ano, mes) => ano * 12 + mes
+export const chaveMes = (ano, mes) => `${ano}-${pad(mes + 1)}-01`
+
+function diasEntre(isoA, isoB) {
+  return Math.round((new Date(isoB + 'T12:00:00') - new Date(isoA + 'T12:00:00')) / 864e5)
+}
+
+// Vencimento de um compromisso num mês (ou null se não vence nesse mês)
+export function vencimentoNoMes(c, ano, mes) {
+  const [ai, mi] = c.inicio.split('-').map(Number)
+  const dif = idxMes(ano, mes) - idxMes(ai, mi - 1)
+  if (dif < 0) return null
+  const parcela = c.parcela_inicial + dif
+  if (c.tipo === 'divida' && parcela > c.total_parcelas) return null
+  const ultimo = new Date(ano, mes + 1, 0).getDate()
+  return { data: `${ano}-${pad(mes + 1)}-${pad(Math.min(c.dia, ultimo))}`, parcela }
+}
+
+// Lista do mês: cada compromisso ativo com vencimento, se foi pago e quantos dias faltam
+export function vencimentosDoMes(compromissos, pagamentos, ano, mes) {
+  const ref = chaveMes(ano, mes)
+  const hoje = hojeISO()
+  const lista = []
+  for (const c of compromissos) {
+    if (!c.ativo) continue
+    const v = vencimentoNoMes(c, ano, mes)
+    if (!v) continue
+    const pago = pagamentos.find((p) => p.compromisso_id === c.id && p.referencia === ref) || null
+    lista.push({ c, ...v, referencia: ref, pago, dias: diasEntre(hoje, v.data) })
+  }
+  return lista.sort((a, b) => a.data.localeCompare(b.data))
+}
+
+// O que precisa de atenção agora: atrasados (mês passado e atual) e o que vence logo
+export function alertasDeVencimento(compromissos, pagamentos) {
+  const d = new Date()
+  const r = []
+  for (const k of [-1, 0, 1]) {
+    const m = new Date(d.getFullYear(), d.getMonth() + k, 1)
+    for (const v of vencimentosDoMes(compromissos, pagamentos, m.getFullYear(), m.getMonth())) {
+      if (!v.pago && v.dias <= v.c.avisar_dias) r.push(v)
+    }
+  }
+  return r.sort((a, b) => a.data.localeCompare(b.data))
+}
+
+export function textoPrazo(dias) {
+  if (dias < -1) return `atrasada há ${-dias} dias`
+  if (dias === -1) return 'venceu ontem'
+  if (dias === 0) return 'vence hoje'
+  if (dias === 1) return 'vence amanhã'
+  return `vence em ${dias} dias`
+}
+
+// Parcelas de uma dívida: pagas (antes do app + no app), restantes, valor que falta
+export function situacaoDivida(c, pagamentos) {
+  const pagasNoApp = pagamentos.filter((p) => p.compromisso_id === c.id).length
+  const pagas = Math.min(c.total_parcelas, c.parcela_inicial - 1 + pagasNoApp)
+  const restantes = c.total_parcelas - pagas
+  const [ai, mi] = c.inicio.split('-').map(Number)
+  const fim = new Date(ai, mi - 1 + (c.total_parcelas - c.parcela_inicial), 1)
+  return { pagas, restantes, falta: restantes * c.valor, fim: { ano: fim.getFullYear(), mes: fim.getMonth() } }
+}

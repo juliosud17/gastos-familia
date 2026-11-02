@@ -11,17 +11,35 @@ export const apiReal = {
   async base(userId) {
     const membro = ok(await supabase.from('membros').select('*').eq('user_id', userId).maybeSingle())
     if (!membro) return null
-    const [familia, membros, categorias, contas] = await Promise.all([
+    const [familia, membros, categorias, contas, compromissos] = await Promise.all([
       supabase.from('familias').select('*').eq('id', membro.familia_id).single().then(ok),
       supabase.from('membros').select('user_id, nome, cor').eq('familia_id', membro.familia_id).order('created_at').then(ok),
       supabase.from('categorias').select('*').eq('familia_id', membro.familia_id).order('ordem').then(ok),
       supabase.from('contas').select('*').eq('familia_id', membro.familia_id).order('ordem').then(ok),
+      supabase.from('compromissos').select('*').eq('familia_id', membro.familia_id).order('dia').then(ok),
     ])
-    return { membro, familia, membros, categorias, contas }
+    return { membro, familia, membros, categorias, contas, compromissos }
   },
   async saldos(familiaId) {
     const linhas = ok(await supabase.from('saldos_contas').select('id, saldo').eq('familia_id', familiaId))
     return Object.fromEntries(linhas.map((l) => [l.id, +l.saldo]))
+  },
+  async pagamentos(familiaId) {
+    return ok(
+      await supabase
+        .from('lancamentos')
+        .select('id, compromisso_id, referencia, data, valor')
+        .eq('familia_id', familiaId)
+        .not('compromisso_id', 'is', null)
+    )
+  },
+  async salvarCompromisso(c) {
+    const { id, ...campos } = c
+    if (id) return ok(await supabase.from('compromissos').update(campos).eq('id', id).select().single())
+    return ok(await supabase.from('compromissos').insert(campos).select().single())
+  },
+  async excluirCompromisso(id) {
+    ok(await supabase.from('compromissos').delete().eq('id', id))
   },
   async salvarConta(c) {
     const { id, ...campos } = c
@@ -108,6 +126,25 @@ function semente() {
     conta('Caixa', '🏦', 'banco', 3, 5400),
   ]
   const [esp, nu, cx] = contas.map((x) => x.id)
+  const agora = new Date()
+  const mesAtual = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-01`
+  const mesesAtras = (n) => {
+    const d = new Date(agora.getFullYear(), agora.getMonth() - n, 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  }
+  const comp = (nome, emoji, tipo, valor, dia, cn, conta_id, extra = {}) => ({
+    id: uid(), familia_id: fam, nome, emoji, tipo, valor, dia, inicio: mesAtual, parcela_inicial: 1, total_parcelas: null,
+    categoria_id: c(cn), conta_id, avisar_dias: 3, ativo: true, ...extra,
+  })
+  const hojeDia = agora.getDate()
+  const compromissos = [
+    comp('Escola', '🏫', 'fixo', 850, Math.min(28, hojeDia + 2), 'Educação', cx),
+    comp('Aluguel', '🏠', 'fixo', 1500, 5, 'Casa', cx),
+    comp('Internet', '🌐', 'fixo', 119.9, 15, 'Contas', nu),
+    comp('Luz', '💡', 'fixo', 189.9, 20, 'Contas', cx),
+    comp('Geladeira', '🧊', 'divida', 289.9, 10, 'Casa', nu, { parcela_inicial: 3, total_parcelas: 10, inicio: mesesAtras(1) }),
+    comp('Empréstimo', '🏦', 'divida', 640, 25, 'Outros', cx, { parcela_inicial: 7, total_parcelas: 24 }),
+  ]
   // Datas sempre dentro do mês atual, para a demonstração ter conteúdo
   const hoje = new Date().getDate()
   const l = (dias, tipo, valor, cn, desc, quem, conta_id, conta_destino_id = null) => {
@@ -129,12 +166,21 @@ function semente() {
     l(7, 'receita', 4200, 'Salário', null, 'ela', cx),
     l(7, 'receita', 3800, 'Salário', null, 'eu', nu),
   ]
+  // Pagamentos já feitos: aluguel deste mês e a parcela 3 da geladeira no mês passado
+  const aluguel = lancamentos.find((x) => x.descricao === 'Aluguel')
+  Object.assign(aluguel, { compromisso_id: compromissos[1].id, referencia: mesAtual })
+  lancamentos.push({
+    id: uid(), familia_id: fam, tipo: 'despesa', valor: 289.9, categoria_id: c('Casa'), descricao: 'Geladeira',
+    data: mesesAtras(1).slice(0, 8) + '10', user_id: 'eu', conta_id: nu, conta_destino_id: null,
+    compromisso_id: compromissos[4].id, referencia: mesesAtras(1), created_at: new Date(Date.now() - 30 * 864e5).toISOString(),
+  })
   return {
     membro: { ...eu, familia_id: fam, token_atalho: 'demo0000demo0000demo0000demo0000' },
     familia: { id: fam, nome: 'Casa Antunes', codigo: 'K7Q2MX' },
     membros: [eu, ela],
     categorias,
     contas,
+    compromissos,
     lancamentos,
   }
 }
@@ -146,7 +192,20 @@ export function criarApiDemo() {
   return {
     demo: true,
     async base() {
-      return { membro: db.membro, familia: db.familia, membros: db.membros, categorias: [...db.categorias], contas: [...db.contas] }
+      return { membro: db.membro, familia: db.familia, membros: db.membros, categorias: [...db.categorias], contas: [...db.contas], compromissos: [...db.compromissos] }
+    },
+    async pagamentos() {
+      return db.lancamentos.filter((l) => l.compromisso_id).map(({ id, compromisso_id, referencia, data, valor }) => ({ id, compromisso_id, referencia, data, valor }))
+    },
+    async salvarCompromisso(c) {
+      if (c.id) {
+        const i = db.compromissos.findIndex((x) => x.id === c.id)
+        db.compromissos[i] = { ...db.compromissos[i], ...c }
+      } else db.compromissos.push({ ...c, id: uid() })
+    },
+    async excluirCompromisso(id) {
+      db.compromissos = db.compromissos.filter((c) => c.id !== id)
+      for (const l of db.lancamentos) if (l.compromisso_id === id) l.compromisso_id = null
     },
     async saldos() {
       const r = Object.fromEntries(db.contas.map((c) => [c.id, +c.saldo_inicial]))

@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { dinheiro, numero, MESES, rotuloDia, primeiroNome, textoErro, efeito, SUPABASE_URL, SUPABASE_KEY } from './lib.js'
+import { dinheiro, numero, MESES, rotuloDia, primeiroNome, textoErro, efeito, alertasDeVencimento, textoPrazo, SUPABASE_URL, SUPABASE_KEY } from './lib.js'
 import Lancar from './Lancar.jsx'
 import Folha from './Folha.jsx'
-import { IconeCasa, IconeLista, IconeMais, IconePizza, IconeAjustes, IconeCofre, Seta } from './Icones.jsx'
+import { IconeCasa, IconeLista, IconeMais, IconeAjustes, IconeCofre, IconeCalendario, Seta } from './Icones.jsx'
 import Contas from './Contas.jsx'
+import APagar from './APagar.jsx'
 
 const ABAS = [
   { id: 'inicio', nome: 'Início', Icone: IconeCasa },
   { id: 'extrato', nome: 'Extrato', Icone: IconeLista },
-  { id: 'contas', nome: 'Contas', Icone: IconeCofre },
-  { id: 'categorias', nome: 'Categorias', Icone: IconePizza },
+  { id: 'apagar', nome: 'A pagar', Icone: IconeCalendario },
+  { id: 'contas', nome: 'Carteira', Icone: IconeCofre },
 ]
 const TODAS_ABAS = [...ABAS.map((a) => a.id), 'ajustes']
 
@@ -19,9 +20,13 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
   useEffect(() => setCategorias(base.categorias), [base.categorias])
   const contas = base.contas || []
   const [saldos, setSaldos] = useState({})
+  const compromissos = base.compromissos || []
+  const [pagamentos, setPagamentos] = useState([])
+  const [visaoExtrato, setVisaoExtrato] = useState('lista')
 
   const [aba, setAba] = useState(() => {
     const h = location.hash.slice(1)
+    if (h === 'categorias') return 'extrato'
     return TODAS_ABAS.includes(h) ? h : 'inicio'
   })
   useEffect(() => {
@@ -66,10 +71,22 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
     }
   }, [api, familia.id])
 
+  const carregarPagamentos = useCallback(async () => {
+    try {
+      setPagamentos(await api.pagamentos(familia.id))
+    } catch (e) {
+      mostrarAviso(textoErro(e))
+    }
+  }, [api, familia.id])
+
   useEffect(() => {
     setLancamentos(null)
     carregarMes()
   }, [carregarMes])
+
+  useEffect(() => {
+    carregarPagamentos()
+  }, [carregarPagamentos])
 
   useEffect(() => {
     carregarSaldos()
@@ -80,8 +97,9 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
       api.assinar(familia.id, () => {
         carregarMes()
         carregarSaldos()
+        carregarPagamentos()
       }),
-    [api, familia.id, carregarMes, carregarSaldos]
+    [api, familia.id, carregarMes, carregarSaldos, carregarPagamentos]
   )
 
   // Recarrega quando o app volta para a frente (ex.: depois de usar o atalho)
@@ -90,10 +108,11 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
       if (document.visibilityState !== 'visible') return
       carregarMes()
       carregarSaldos()
+      carregarPagamentos()
     }
     document.addEventListener('visibilitychange', f)
     return () => document.removeEventListener('visibilitychange', f)
-  }, [carregarMes, carregarSaldos])
+  }, [carregarMes, carregarSaldos, carregarPagamentos])
 
   function mostrarAviso(t) {
     setAviso(t)
@@ -118,8 +137,11 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
   async function salvar(l) {
     await api.salvarLancamento({ ...l, familia_id: familia.id })
     setFolha(null)
-    mostrarAviso(l.id ? 'Alteração salva' : { despesa: 'Gasto anotado', receita: 'Entrada anotada', transferencia: 'Transferência anotada' }[l.tipo])
+    mostrarAviso(
+      l.id ? 'Alteração salva' : l.compromisso_id ? 'Pagamento anotado' : { despesa: 'Gasto anotado', receita: 'Entrada anotada', transferencia: 'Transferência anotada' }[l.tipo]
+    )
     carregarSaldos()
+    carregarPagamentos()
     // Se o lançamento for de outro mês, vai para ele
     const [a, m] = l.data.split('-').map(Number)
     if (a !== periodo.ano || m - 1 !== periodo.mes) setPeriodo({ ano: a, mes: m - 1 })
@@ -132,6 +154,7 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
     mostrarAviso('Anotação excluída')
     carregarMes()
     carregarSaldos()
+    carregarPagamentos()
   }
 
   const mudarMes = (d) =>
@@ -142,6 +165,35 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
 
   const comum = { lancamentos, catPorId, pessoaPorId, contaPorId, periodo, abrir: (l) => setFolha({ editar: l, tipo: l.tipo }) }
   const guardado = contas.reduce((s, c) => s + (saldos[c.id] || 0), 0)
+  const alertas = useMemo(() => alertasDeVencimento(compromissos, pagamentos), [compromissos, pagamentos])
+
+  // Número no ícone do app (iPhone com o app na tela de início)
+  useEffect(() => {
+    try {
+      if (alertas.length && navigator.setAppBadge) navigator.setAppBadge(alertas.length).catch(() => {})
+      else if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {})
+    } catch {}
+  }, [alertas.length])
+
+  function pagar(v) {
+    const parcela = v.c.tipo === 'divida' ? ` ${v.parcela}/${v.c.total_parcelas}` : ''
+    setFolha({
+      tipo: 'despesa',
+      titulo: `Pagar ${v.c.nome}`,
+      valor: v.c.valor,
+      categoria_id: v.c.categoria_id,
+      conta_id: v.c.conta_id,
+      descricao: v.c.nome + parcela,
+      compromisso_id: v.c.id,
+      referencia: v.referencia,
+    })
+  }
+
+  function abrirPagamento(id) {
+    const l = (lancamentos || []).find((x) => x.id === id)
+    if (l) setFolha({ editar: l, tipo: l.tipo })
+    else mostrarAviso('O pagamento foi anotado em outro mês. Veja no extrato.')
+  }
 
   return (
     <div className="app">
@@ -167,9 +219,33 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
 
       <main className="conteudo">
         {aba === 'inicio' && (
-          <Inicio {...comum} totais={totais} categorias={categorias} irPara={setAba} guardado={contas.length ? guardado : null} />
+          <Inicio {...comum} totais={totais} categorias={categorias} irPara={setAba} guardado={contas.length ? guardado : null} alertas={alertas} />
         )}
-        {aba === 'extrato' && <Extrato {...comum} membros={membros} contas={contas} />}
+        {aba === 'extrato' && (
+          <div className="filtros">
+            <div className="segmento">
+              <button aria-pressed={visaoExtrato === 'lista'} onClick={() => setVisaoExtrato('lista')}>Anotações</button>
+              <button aria-pressed={visaoExtrato === 'categorias'} onClick={() => setVisaoExtrato('categorias')}>Por categoria</button>
+            </div>
+          </div>
+        )}
+        {aba === 'extrato' && visaoExtrato === 'lista' && <Extrato {...comum} membros={membros} contas={contas} />}
+        {aba === 'apagar' && (
+          <APagar
+            api={api}
+            compromissos={compromissos}
+            pagamentos={pagamentos}
+            periodo={periodo}
+            categorias={categorias}
+            contas={contas}
+            familiaId={familia.id}
+            token={membro.token_atalho}
+            aoMudar={recarregarBase}
+            aviso={mostrarAviso}
+            pagar={pagar}
+            abrirPagamento={abrirPagamento}
+          />
+        )}
         {aba === 'contas' && (
           <Contas
             {...comum}
@@ -183,7 +259,7 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
             novoNaConta={(conta_id) => setFolha({ tipo: 'despesa', conta_id })}
           />
         )}
-        {aba === 'categorias' && (
+        {aba === 'extrato' && visaoExtrato === 'categorias' && (
           <Categorias
             {...comum}
             api={api}
@@ -242,7 +318,7 @@ function BotaoAba({ aba, ativa, onClick }) {
 
 // ---------------- Início ----------------
 
-function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, abrir, irPara, guardado }) {
+function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, abrir, irPara, guardado, alertas = [] }) {
   const comLimite = categorias.filter((c) => c.tipo === 'despesa' && c.limite)
   const gastoPorCat = useMemo(() => somarPorCategoria(lancamentos), [lancamentos])
   const estourados = comLimite.filter((c) => (gastoPorCat[c.id] || 0) > +c.limite)
@@ -266,8 +342,18 @@ function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaP
             <strong className={guardado < 0 ? 'tinta-vermelha' : ''}>{dinheiro(guardado)}</strong>
           </button>
         )}
+        {alertas.length > 0 && (
+          <button className={'alerta-vencimento' + (alertas.some((a) => a.dias < 0) ? ' atrasado' : '')} onClick={() => irPara('apagar')}>
+            <span aria-hidden="true">🔔</span>
+            <span>
+              {alertas.length === 1
+                ? `${alertas[0].c.emoji} ${alertas[0].c.nome} ${textoPrazo(alertas[0].dias)}, ${dinheiro(alertas[0].c.valor)}`
+                : `${alertas.length} contas para pagar, ${dinheiro(alertas.reduce((s, a) => s + +a.c.valor, 0))}. A primeira ${textoPrazo(alertas[0].dias)}.`}
+            </span>
+          </button>
+        )}
         {estourados.length > 0 && (
-          <button className="alerta-limite" onClick={() => irPara('categorias')}>
+          <button className="alerta-limite" onClick={() => irPara('extrato')}>
             {estourados.length === 1
               ? `${estourados[0].emoji} ${estourados[0].nome} passou do limite do mês`
               : `${estourados.length} categorias passaram do limite do mês`}

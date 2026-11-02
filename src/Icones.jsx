@@ -21,3 +21,6 @@ export const Seta = ({ dir }) => (
 export const IconeCofre = () => (
   <svg {...p}><rect x="4" y="6" width="16" height="13" rx="2" /><circle cx="12" cy="12.5" r="2.5" /><path d="M7 19v1.5M17 19v1.5M12 6V4" /></svg>
 )
+export const IconeCalendario = () => (
+  <svg {...p}><rect x="4" y="5.5" width="16" height="14.5" rx="2" /><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" /><path d="M9 14.5l2 2 4-4" /></svg>
+)

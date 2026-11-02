@@ -1120,3 +1120,88 @@ p {
 .entrou-saiu span {
   white-space: nowrap;
 }
+
+/* ---------- A pagar (atualização 3) ---------- */
+
+.tom-falta {
+  color: var(--tinta);
+}
+
+.tom-perto {
+  color: var(--vermelho);
+  font-weight: 600;
+}
+
+.linha-com-acao {
+  display: flex;
+  align-items: center;
+}
+
+.linha-com-acao .linha {
+  flex: 1;
+  min-width: 0;
+  padding-right: 10px;
+}
+
+.parcela {
+  color: var(--tinta-suave);
+  font-weight: 500;
+}
+
+.riscado {
+  color: var(--tinta-suave);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.botao-pagar {
+  flex: none;
+  height: 34px;
+  min-width: 68px;
+  margin-right: 16px;
+  padding: 0 12px;
+  border-radius: 99px;
+  border: 1.5px solid var(--tinta);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.botao-pagar.urgente {
+  border-color: var(--vermelho);
+  background: var(--vermelho);
+  color: #fff;
+}
+
+.botao-pagar.pago {
+  border-color: transparent;
+  background: var(--azul-fundo);
+  color: var(--azul);
+}
+
+.alerta-vencimento {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--papel-claro);
+  border: 1.5px solid var(--tinta);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.alerta-vencimento.atrasado {
+  border-color: var(--vermelho);
+  color: var(--vermelho);
+  background: var(--vermelho-fundo);
+}
+
+.lista-simples {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}

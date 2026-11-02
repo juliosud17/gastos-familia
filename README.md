@@ -4,8 +4,9 @@ Controle de gastos mensal da família. Todo mundo anota no mesmo lugar, pelo cel
 
 - **Início**: sobra do mês, quanto entrou e quanto saiu, últimas anotações
 - **Extrato**: tudo do mês por dia, com filtro de gastos, entradas e por pessoa
-- **Contas**: quanto tem guardado em dinheiro em espécie e em cada banco, com transferência entre elas
-- **Categorias**: quanto foi para cada categoria, com limite mensal opcional
+- **A pagar**: contas fixas (escola, aluguel) e dívidas parceladas, com vencimento, botão de pagar e progresso das parcelas
+- **Carteira**: quanto tem guardado em dinheiro em espécie e em cada banco, com transferência entre elas
+- **Extrato → Por categoria**: quanto foi para cada categoria, com limite mensal opcional
 - **Ajustes**: convite da família, nomes e a chave do atalho do iPhone
 - **Atalho na tela de início do iPhone**: anota um gasto em 2 toques, sem abrir o app
 
@@ -18,7 +19,8 @@ Quer ver antes de configurar? Abra o app com `?demo` no fim do endereço.
 
 1. Crie uma conta em [supabase.com](https://supabase.com) e um projeto novo (região São Paulo).
 2. No projeto, abra **SQL Editor → New query**, cole todo o conteúdo de [`supabase/schema.sql`](supabase/schema.sql) e clique em **Run**.
-   Depois faça o mesmo com [`supabase/02-contas.sql`](supabase/02-contas.sql) (contas e transferências).
+   Depois faça o mesmo, nesta ordem, com [`supabase/02-contas.sql`](supabase/02-contas.sql) (contas e transferências)
+   e [`supabase/03-a-pagar.sql`](supabase/03-a-pagar.sql) (contas a pagar e avisos).
 3. Em **Project Settings → API**, anote:
    - **Project URL** (ex.: `https://abcd1234.supabase.co`)
    - **Publishable key** (chave pública; pode ficar no app sem problema, a segurança vem das regras do banco)
@@ -98,6 +100,15 @@ Também dá para usar o atalho no **Botão de Ação** (iPhone 15 Pro em diante)
 
 Se não quiser montar o atalho, crie um atalho com só a ação **Abrir URLs** apontando para
 `https://SEU-USUARIO.github.io/NOME-DO-REPO/?novo=despesa`. Ele abre o app já na tela de anotar gasto (`?novo=receita` para entrada).
+
+### Aviso de vencimento todo dia
+
+1. No app **Atalhos**, aba **Automação → +**, escolha **Hora do Dia**: 8:00, **Diariamente**, e marque **Executar Imediatamente**.
+2. **Obter Conteúdo do URL**: `https://SEU-PROJETO.supabase.co/rest/v1/rpc/avisos_vencimento`, método POST, os mesmos cabeçalhos dos outros atalhos e corpo JSON só com `p_token`.
+3. **Obter Valor do Dicionário**: chave `mensagem`.
+4. **Se** *Valor do Dicionário* **tem qualquer valor** → **Mostrar Notificação** com o *Valor do Dicionário*.
+
+A notificação lista o que vence nos próximos dias (cada conta tem o seu "avisar X dias antes") e o que está atrasado, e não aparece quando não há nada.
 
 ### Se o atalho der erro
 
