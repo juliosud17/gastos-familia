@@ -1,0 +1,23 @@
+produto,tipo,preco_direto,receita,quantidade
+Brownie Brigadeiro,brownie,8.00,Massa,1
+Brownie Brigadeiro,brownie,8.00,Recheio Brigadeiro,1
+Brownie Doce de Leite,brownie,8.00,Massa,1
+Brownie Doce de Leite,brownie,8.00,Recheio doce de Leite,1
+Brownie Ninho c/Nutella,brownie,8.00,Massa,1
+Brownie Ninho c/Nutella,brownie,8.00,Recheio de Ninho,1
+Brownie Ninho c/Nutella,brownie,8.00,Nutella Brownie,1
+Pote Chocolate,pote,14.00,Massa Potes,1
+Pote Chocolate,pote,14.00,Creme de Chocolate,100
+Pote Chocolate,pote,14.00,Pote,1
+Pote Limão,pote,14.00,Massa Potes,1
+Pote Limão,pote,14.00,Creme de Chocolate,15
+Pote Limão,pote,14.00,Pote,1
+Pote Limão,pote,14.00,Mousse Limão,1
+Pote Maracujá,pote,14.00,Massa Potes,1
+Pote Maracujá,pote,14.00,Pote,1
+Pote Maracujá,pote,14.00,Mousse Maracujá,120
+Pote Maracujá,pote,14.00,Creme de Chocolate,40
+Pote Ninho,pote,14.00,Massa Potes,1
+Pote Ninho,pote,14.00,Pote,1
+Pote Ninho,pote,14.00,Creme de Ninho,1
+Pote Ninho,pote,14.00,Nutella Pote,1

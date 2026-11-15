@@ -1,19 +1,19 @@
-nome,unidade,preco,atualizado_em,observacao
-Açúcar,kg,2.70,2026-06-06,
-Chocolate em Pó,kg,65.00,2026-07-07,
-Creme de Leite,un,2.45,2026-06-06,
-Doce de Leite,kg,26.00,2026-06-06,
-Doce triângulo,kg,9.50,2026-06-06,
-Emulsificante,kg,50.00,2026-06-06,no Meu Bolso está "Emulsificantge"
-Farinha,kg,2.70,2026-06-06,
-Kraft,un,0.35,2026-06-06,embalagem
-Lata creme de leite,un,7.20,2026-06-10,
-Leite Condensado,un,6.70,2026-06-06,
-Leite em Pó,kg,36.00,2026-06-06,
-Limão,kg,4.00,2026-06-06,
-Manteiga,kg,14.00,2026-06-12,
-Maracujá,kg,40.00,2026-06-12,
-Nutella,kg,69.00,2026-06-06,
-Óleo,L,7.00,2026-06-06,no Meu Bolso está "Ml" mas as receitas usam litro (0,2 = 200 ml)
-Ovos,un,0.52,2026-06-06,
-Potes,un,1.20,2026-06-06,embalagem
+nome,unidade,preco,atualizado_em,estoque,estoque_em,observacao
+Açúcar,kg,2.70,2026-06-06,21,2026-07-07,
+Chocolate em Pó,kg,65.00,2026-07-07,15,2026-07-07,
+Creme de Leite,un,2.45,2026-06-06,52,2026-07-07,
+Doce de Leite,kg,26.00,2026-06-06,5,2026-07-07,
+Doce triângulo,kg,9.50,2026-06-06,3,2026-07-07,
+Emulsificante,kg,50.00,2026-06-06,0,2026-07-07,no Meu Bolso está Emulsificantge
+Farinha,kg,2.70,2026-06-06,12,2026-07-07,
+Kraft,un,0.35,2026-06-06,100,2026-07-07,embalagem
+Lata creme de leite,un,7.20,2026-06-10,6,2026-07-07,
+Leite Condensado,un,6.70,2026-06-06,24,2026-07-07,
+Leite em Pó,kg,36.00,2026-06-06,2,2026-07-07,
+Limão,kg,4.00,2026-06-06,0,2026-07-07,
+Manteiga,kg,14.00,2026-06-12,1,2026-07-07,
+Maracujá,kg,40.00,2026-06-12,0,2026-07-07,
+Nutella,kg,69.00,2026-06-06,2,2026-07-07,
+Óleo,L,7.00,2026-06-06,22,2026-07-07,no Meu Bolso está Ml mas as receitas usam litro
+Ovos,un,0.52,2026-06-06,210,2026-07-07,
+Potes,un,1.20,2026-06-06,280,2026-07-07,embalagem
