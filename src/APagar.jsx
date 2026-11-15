@@ -5,7 +5,7 @@ import {
 } from './lib.js'
 import Folha from './Folha.jsx'
 
-export default function APagar({ api, compromissos, pagamentos, periodo, categorias, contas, familiaId, token, aoMudar, aviso, pagar, abrirPagamento }) {
+export default function APagar({ api, compromissos, pagamentos, periodo, categorias, contas, familiaId, token, escopo = 'casa', aoMudar, aviso, pagar, abrirPagamento }) {
   const [editando, setEditando] = useState(null)
 
   const doMes = useMemo(
@@ -46,7 +46,7 @@ export default function APagar({ api, compromissos, pagamentos, periodo, categor
     setEditando({
       tipo: 'fixo', nome: '', emoji: '', valor: '', dia: '', inicio: chaveMes(hoje.getFullYear(), hoje.getMonth()),
       parcela_inicial: 1, total_parcelas: null, categoria_id: null, conta_id: contas[0]?.id || null,
-      avisar_dias: 3, ativo: true, familia_id: familiaId,
+      avisar_dias: 3, ativo: true, familia_id: familiaId, escopo,
     })
   }
 
@@ -68,7 +68,9 @@ export default function APagar({ api, compromissos, pagamentos, periodo, categor
         <h2>Vencimentos de {MESES[periodo.mes]}</h2>
         {doMes.length === 0 ? (
           <p className="vazio">
-            {compromissos.length === 0
+            {compromissos.length === 0 && escopo === 'negocio'
+              ? 'Cadastre as contas fixas do negócio (MEI, parcela da moto, aluguel de equipamento) para acompanhar os vencimentos.'
+              : compromissos.length === 0
               ? 'Cadastre as contas fixas (escola, aluguel, luz) e as dívidas parceladas para acompanhar os vencimentos.'
               : `Nada para pagar em ${MESES[periodo.mes]}.`}
           </p>
@@ -132,7 +134,7 @@ export default function APagar({ api, compromissos, pagamentos, periodo, categor
         )}
       </section>
 
-      <AvisoIphone token={token} />
+      {escopo === 'casa' && <AvisoIphone token={token} />}
 
       {editando && (
         <EditarCompromisso
@@ -233,6 +235,7 @@ function EditarCompromisso({ comp, categorias, contas, aoSalvar, aoExcluir, aoFe
       conta_id: contaId || null,
       avisar_dias: Number(avisar),
       ativo: comp.ativo,
+      escopo: comp.escopo || 'casa',
       ...extra,
     }
   }

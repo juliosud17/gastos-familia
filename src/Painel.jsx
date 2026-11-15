@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { dinheiro, numero, MESES, rotuloDia, primeiroNome, textoErro, efeito, alertasDeVencimento, textoPrazo, SUPABASE_URL, SUPABASE_KEY } from './lib.js'
+import { dinheiro, numero, MESES, rotuloDia, primeiroNome, textoErro, efeito, alertasDeVencimento, textoPrazo, doCaderno, ehRetirada, SUPABASE_URL, SUPABASE_KEY } from './lib.js'
 import Lancar from './Lancar.jsx'
 import Folha from './Folha.jsx'
-import { IconeCasa, IconeLista, IconeMais, IconeAjustes, IconeCofre, IconeCalendario, Seta } from './Icones.jsx'
+import { IconeCasa, IconeLista, IconeMais, IconeAjustes, IconeCofre, IconeCalendario, IconeForno, Seta } from './Icones.jsx'
 import Contas from './Contas.jsx'
 import APagar from './APagar.jsx'
+import Producao from './Producao.jsx'
 
 const ABAS = [
   { id: 'inicio', nome: 'Início', Icone: IconeCasa },
@@ -12,7 +13,27 @@ const ABAS = [
   { id: 'apagar', nome: 'A pagar', Icone: IconeCalendario },
   { id: 'contas', nome: 'Carteira', Icone: IconeCofre },
 ]
-const TODAS_ABAS = [...ABAS.map((a) => a.id), 'ajustes']
+const ABAS_NEGOCIO = [
+  { id: 'inicio', nome: 'Início', Icone: IconeCasa },
+  { id: 'extrato', nome: 'Extrato', Icone: IconeLista },
+  { id: 'producao', nome: 'Produção', Icone: IconeForno },
+  { id: 'apagar', nome: 'A pagar', Icone: IconeCalendario },
+]
+const TODAS_ABAS = [...ABAS.map((a) => a.id), 'producao', 'ajustes']
+
+// Valor que a anotação soma no caderno (retirada: entra na casa, sai do negócio)
+function noCaderno(l, escopo, contaPorId) {
+  if (ehRetirada(l, contaPorId)) return escopo === 'negocio' ? -l.valor : +l.valor
+  return efeito(l)
+}
+
+function lerEscopo() {
+  try {
+    return localStorage.getItem('caderneta-escopo') === 'negocio' ? 'negocio' : 'casa'
+  } catch {
+    return 'casa'
+  }
+}
 
 export default function Painel({ api, base, recarregarBase, aoSair }) {
   const { membro, familia, membros } = base
@@ -33,6 +54,24 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
     history.replaceState(null, '', location.pathname + location.search + '#' + aba)
     window.scrollTo(0, 0)
   }, [aba])
+
+  const temNegocio = Boolean(familia.negocio_nome)
+  const nomeNegocio = temNegocio ? primeiroNome(familia.negocio_nome) : ''
+  const [escolha, setEscolha] = useState(lerEscopo)
+  const escopo = temNegocio ? escolha : 'casa'
+  const negocio = escopo === 'negocio'
+  const abas = negocio ? ABAS_NEGOCIO : ABAS
+  function trocarEscopo(e) {
+    setEscolha(e)
+    try {
+      localStorage.setItem('caderneta-escopo', e)
+    } catch {}
+    if (aba !== 'ajustes' && !(e === 'negocio' ? ABAS_NEGOCIO : ABAS).some((a) => a.id === aba)) setAba('inicio')
+  }
+  useEffect(() => {
+    if (aba === 'producao' && !negocio) setAba('inicio')
+    if (aba === 'contas' && negocio) setAba('inicio')
+  }, [aba, negocio])
 
   const [periodo, setPeriodo] = useState(() => {
     const d = new Date()
@@ -124,15 +163,29 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
   const pessoaPorId = useMemo(() => Object.fromEntries(membros.map((m) => [m.user_id, m])), [membros])
   const contaPorId = useMemo(() => Object.fromEntries(contas.map((c) => [c.id, c])), [contas])
 
+  // O que é deste caderno (casa ou negócio)
+  const doEscopo = useMemo(
+    () => (lancamentos ? lancamentos.filter((l) => doCaderno(l, escopo, contaPorId)) : null),
+    [lancamentos, escopo, contaPorId]
+  )
+  const catsEscopo = useMemo(() => categorias.filter((c) => (c.escopo || 'casa') === escopo), [categorias, escopo])
+  const compEscopo = useMemo(() => compromissos.filter((c) => (c.escopo || 'casa') === escopo), [compromissos, escopo])
+  const contasCasa = useMemo(() => contas.filter((c) => !c.negocio), [contas])
+  const contasNegocio = useMemo(() => contas.filter((c) => c.negocio), [contas])
+
   const totais = useMemo(() => {
     let entrou = 0
     let saiu = 0
-    for (const l of lancamentos || []) {
-      if (l.tipo === 'receita') entrou += +l.valor
+    let retiradas = 0
+    for (const l of doEscopo || []) {
+      if (ehRetirada(l, contaPorId)) retiradas += +l.valor
+      else if (l.tipo === 'receita') entrou += +l.valor
       else if (l.tipo === 'despesa') saiu += +l.valor
     }
-    return { entrou, saiu, sobra: entrou - saiu }
-  }, [lancamentos])
+    // Na casa, o que veio do negócio conta como entrada; no negócio, o lucro não desconta as retiradas
+    if (escopo === 'casa') return { entrou: entrou + retiradas, saiu, sobra: entrou + retiradas - saiu, retiradas }
+    return { entrou, saiu, sobra: entrou - saiu, retiradas }
+  }, [doEscopo, escopo, contaPorId])
 
   async function salvar(l) {
     await api.salvarLancamento({ ...l, familia_id: familia.id })
@@ -163,9 +216,10 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
       return { ano: n.getFullYear(), mes: n.getMonth() }
     })
 
-  const comum = { lancamentos, catPorId, pessoaPorId, contaPorId, periodo, abrir: (l) => setFolha({ editar: l, tipo: l.tipo }) }
-  const guardado = contas.reduce((s, c) => s + (saldos[c.id] || 0), 0)
+  const comum = { lancamentos: doEscopo, catPorId, pessoaPorId, contaPorId, periodo, escopo, abrir: (l) => setFolha({ editar: l, tipo: l.tipo }) }
+  const guardado = (negocio ? contasNegocio : contasCasa).reduce((s, c) => s + (saldos[c.id] || 0), 0)
   const alertas = useMemo(() => alertasDeVencimento(compromissos, pagamentos), [compromissos, pagamentos])
+  const alertasEscopo = alertas.filter((a) => (a.c.escopo || 'casa') === escopo)
 
   // Número no ícone do app (iPhone com o app na tela de início)
   useEffect(() => {
@@ -184,6 +238,7 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
       categoria_id: v.c.categoria_id,
       conta_id: v.c.conta_id,
       descricao: v.c.nome + parcela,
+      escopo: v.c.escopo || 'casa',
       compromisso_id: v.c.id,
       referencia: v.referencia,
     })
@@ -195,8 +250,10 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
     else mostrarAviso('O pagamento foi anotado em outro mês. Veja no extrato.')
   }
 
+  const escopoFolha = folha?.editar?.escopo || folha?.escopo || escopo
+
   return (
-    <div className="app">
+    <div className={'app' + (negocio ? ' modo-negocio' : '')}>
       <header className="topo">
         <div className="seletor-mes">
           <button className="icone-botao" aria-label="Mês anterior" onClick={() => mudarMes(-1)}><Seta dir="esq" /></button>
@@ -206,7 +263,15 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
           </h1>
           <button className="icone-botao" aria-label="Próximo mês" onClick={() => mudarMes(1)}><Seta dir="dir" /></button>
         </div>
-        <p className="casa">{familia.nome}{api.demo && <span className="selo-demo">demonstração</span>}</p>
+        {temNegocio ? (
+          <div className="troca-caderno" role="group" aria-label="Caderno">
+            <button aria-pressed={!negocio} onClick={() => trocarEscopo('casa')}>Casa</button>
+            <button aria-pressed={negocio} onClick={() => trocarEscopo('negocio')}>🧁 {nomeNegocio}</button>
+            {api.demo && <span className="selo-demo">demonstração</span>}
+          </div>
+        ) : (
+          <p className="casa">{familia.nome}{api.demo && <span className="selo-demo">demonstração</span>}</p>
+        )}
         <button
           className={'icone-botao botao-ajustes' + (aba === 'ajustes' ? ' ativo' : '')}
           aria-label="Ajustes"
@@ -219,7 +284,16 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
 
       <main className="conteudo">
         {aba === 'inicio' && (
-          <Inicio {...comum} totais={totais} categorias={categorias} irPara={setAba} guardado={contas.length ? guardado : null} alertas={alertas} />
+          <Inicio
+            {...comum}
+            totais={totais}
+            categorias={catsEscopo}
+            irPara={setAba}
+            guardado={(negocio ? contasNegocio : contasCasa).length ? guardado : null}
+            alertas={alertasEscopo}
+            nomeNegocio={nomeNegocio}
+            retirar={() => setFolha({ tipo: 'transferencia', escopo: 'negocio' })}
+          />
         )}
         {aba === 'extrato' && (
           <div className="filtros">
@@ -229,15 +303,16 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
             </div>
           </div>
         )}
-        {aba === 'extrato' && visaoExtrato === 'lista' && <Extrato {...comum} membros={membros} contas={contas} />}
+        {aba === 'extrato' && visaoExtrato === 'lista' && <Extrato {...comum} membros={membros} contas={negocio ? contasNegocio : contasCasa} />}
         {aba === 'apagar' && (
           <APagar
             api={api}
-            compromissos={compromissos}
+            compromissos={compEscopo}
             pagamentos={pagamentos}
             periodo={periodo}
-            categorias={categorias}
-            contas={contas}
+            categorias={catsEscopo}
+            contas={negocio ? contasNegocio : contasCasa}
+            escopo={escopo}
             familiaId={familia.id}
             token={membro.token_atalho}
             aoMudar={recarregarBase}
@@ -250,8 +325,10 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
           <Contas
             {...comum}
             api={api}
+            lancamentos={lancamentos}
             contas={contas}
             saldos={saldos}
+            nomeNegocio={nomeNegocio}
             familiaId={familia.id}
             aoMudar={recarregarBase}
             aviso={mostrarAviso}
@@ -263,7 +340,7 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
           <Categorias
             {...comum}
             api={api}
-            categorias={categorias}
+            categorias={catsEscopo}
             familiaId={familia.id}
             aoMudar={async () => {
               await recarregarBase()
@@ -271,19 +348,20 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
             aviso={mostrarAviso}
           />
         )}
+        {aba === 'producao' && negocio && <Producao api={api} familia={familia} aviso={mostrarAviso} />}
         {aba === 'ajustes' && (
-          <Ajustes api={api} membro={membro} familia={familia} membros={membros} recarregar={recarregarBase} aoSair={aoSair} aviso={mostrarAviso} />
+          <Ajustes api={api} nomeNegocio={nomeNegocio} trocarEscopo={trocarEscopo} membro={membro} familia={familia} membros={membros} recarregar={recarregarBase} aoSair={aoSair} aviso={mostrarAviso} />
         )}
       </main>
 
       <nav className="abas" aria-label="Seções">
-        {ABAS.slice(0, 2).map((a) => (
+        {abas.slice(0, 2).map((a) => (
           <BotaoAba key={a.id} aba={a} ativa={aba === a.id} onClick={() => setAba(a.id)} />
         ))}
-        <button className="botao-anotar" aria-label="Anotar gasto ou entrada" onClick={() => setFolha({ tipo: 'despesa' })}>
+        <button className="botao-anotar" aria-label={negocio ? 'Anotar no caderno do negócio' : 'Anotar gasto ou entrada'} onClick={() => setFolha({ tipo: 'despesa' })}>
           <IconeMais />
         </button>
-        {ABAS.slice(2).map((a) => (
+        {abas.slice(2).map((a) => (
           <BotaoAba key={a.id} aba={a} ativa={aba === a.id} onClick={() => setAba(a.id)} />
         ))}
       </nav>
@@ -291,8 +369,10 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
       {folha && (
         <Lancar
           inicial={folha}
-          categorias={categorias}
-          contas={contas}
+          categorias={categorias.filter((c) => (c.escopo || 'casa') === escopoFolha)}
+          contas={escopoFolha === 'negocio' ? contasNegocio : contasCasa}
+          destinos={contasCasa}
+          escopo={escopoFolha}
           membros={membros}
           eu={membro.user_id}
           aoSalvar={salvar}
@@ -318,7 +398,8 @@ function BotaoAba({ aba, ativa, onClick }) {
 
 // ---------------- Início ----------------
 
-function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, abrir, irPara, guardado, alertas = [] }) {
+function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, escopo, abrir, irPara, guardado, alertas = [], nomeNegocio, retirar }) {
+  const negocio = escopo === 'negocio'
   const comLimite = categorias.filter((c) => c.tipo === 'despesa' && c.limite)
   const gastoPorCat = useMemo(() => somarPorCategoria(lancamentos), [lancamentos])
   const estourados = comLimite.filter((c) => (gastoPorCat[c.id] || 0) > +c.limite)
@@ -327,21 +408,43 @@ function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaP
   return (
     <>
       <section className="pagina-pautada resumo" aria-label={`Resumo de ${MESES[periodo.mes]}`}>
-        <p className="rotulo-sobra">{negativo ? 'Passou do que entrou' : `Sobra de ${MESES[periodo.mes]}`}</p>
+        <p className="rotulo-sobra">
+          {negocio
+            ? negativo ? 'Gastou mais do que vendeu' : `Lucro de ${MESES[periodo.mes]}`
+            : negativo ? 'Passou do que entrou' : `Sobra de ${MESES[periodo.mes]}`}
+        </p>
         <p className={'sobra' + (negativo ? ' negativa' : '')}>
           <span className="moeda">{negativo ? '−R$' : 'R$'}</span>
           {lancamentos ? numero(totais.sobra) : '—'}
         </p>
         <div className="entrou-saiu">
-          <p><span>Entrou</span><strong className="tinta-azul">{dinheiro(totais.entrou)}</strong></p>
-          <p><span>Saiu</span><strong className="tinta-vermelha">{dinheiro(totais.saiu)}</strong></p>
+          <p><span>{negocio ? 'Vendeu' : 'Entrou'}</span><strong className="tinta-azul">{dinheiro(totais.entrou)}</strong></p>
+          <p><span>{negocio ? 'Gastou' : 'Saiu'}</span><strong className="tinta-vermelha">{dinheiro(totais.saiu)}</strong></p>
         </div>
-        {guardado !== null && (
-          <button className="linha-guardado" onClick={() => irPara('contas')}>
-            <span>Guardado nas contas</span>
-            <strong className={guardado < 0 ? 'tinta-vermelha' : ''}>{dinheiro(guardado)}</strong>
+        {!negocio && totais.retiradas > 0 && (
+          <p className="linha-guardado sem-toque">
+            <span>🧁 {nomeNegocio} trouxe para casa</span>
+            <strong className="tinta-azul">{dinheiro(totais.retiradas)}</strong>
+          </p>
+        )}
+        {negocio && (
+          <button className="linha-guardado" onClick={retirar}>
+            <span>Retirado para casa{totais.retiradas > 0 ? '' : ' (nada ainda)'}</span>
+            <strong>{dinheiro(totais.retiradas)}</strong>
           </button>
         )}
+        {guardado !== null &&
+          (negocio ? (
+            <p className="linha-guardado sem-toque">
+              <span>No caixa hoje</span>
+              <strong className={guardado < 0 ? 'tinta-vermelha' : ''}>{dinheiro(guardado)}</strong>
+            </p>
+          ) : (
+            <button className="linha-guardado" onClick={() => irPara('contas')}>
+              <span>Guardado nas contas</span>
+              <strong className={guardado < 0 ? 'tinta-vermelha' : ''}>{dinheiro(guardado)}</strong>
+            </button>
+          ))}
         {alertas.length > 0 && (
           <button className={'alerta-vencimento' + (alertas.some((a) => a.dias < 0) ? ' atrasado' : '')} onClick={() => irPara('apagar')}>
             <span aria-hidden="true">🔔</span>
@@ -369,11 +472,15 @@ function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaP
         {lancamentos === null ? (
           <p className="vazio">Carregando…</p>
         ) : lancamentos.length === 0 ? (
-          <p className="vazio">Nada anotado em {MESES[periodo.mes]} ainda. Toque no + para anotar o primeiro gasto.</p>
+          <p className="vazio">
+            {negocio
+              ? `Nada anotado no caderno do negócio em ${MESES[periodo.mes]}. Toque no + para anotar uma venda, uma compra ou uma retirada.`
+              : `Nada anotado em ${MESES[periodo.mes]} ainda. Toque no + para anotar o primeiro gasto.`}
+          </p>
         ) : (
           <ul className="linhas">
             {lancamentos.slice(0, 6).map((l) => (
-              <Linha key={l.id} l={l} cat={catPorId[l.categoria_id]} pessoa={pessoaPorId[l.user_id]} contaPorId={contaPorId} abrir={abrir} mostrarDia />
+              <Linha key={l.id} l={l} cat={catPorId[l.categoria_id]} pessoa={pessoaPorId[l.user_id]} contaPorId={contaPorId} abrir={abrir} escopo={escopo} mostrarDia />
             ))}
           </ul>
         )}
@@ -382,12 +489,13 @@ function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaP
   )
 }
 
-function Linha({ l, cat, pessoa, contaPorId = {}, abrir, mostrarDia, contaFoco }) {
+function Linha({ l, cat, pessoa, contaPorId = {}, abrir, mostrarDia, contaFoco, escopo = 'casa' }) {
   const origem = contaPorId[l.conta_id]
   const destino = contaPorId[l.conta_destino_id]
   const transf = l.tipo === 'transferencia'
+  const retirada = ehRetirada(l, contaPorId)
   const nomeConta = (c) => (c ? c.nome : 'conta excluída')
-  const titulo = transf ? l.descricao || 'Transferência' : l.descricao || cat?.nome || 'Sem categoria'
+  const titulo = retirada ? l.descricao || 'Retirada do negócio' : transf ? l.descricao || 'Transferência' : l.descricao || cat?.nome || 'Sem categoria'
   const detalhe = [
     transf ? `${nomeConta(origem)} → ${nomeConta(destino)}` : l.descricao && cat ? cat.nome : '',
     !transf && origem ? origem.nome : '',
@@ -401,12 +509,15 @@ function Linha({ l, cat, pessoa, contaPorId = {}, abrir, mostrarDia, contaFoco }
   let cor = l.tipo === 'despesa' ? 'tinta-vermelha' : l.tipo === 'receita' ? 'tinta-azul' : 'tinta-neutra'
   if (transf && contaFoco && contaFoco !== 'todas') {
     sinal = l.conta_id === contaFoco ? '−' : '+'
+  } else if (retirada) {
+    sinal = escopo === 'negocio' ? '−' : '+'
+    cor = escopo === 'negocio' ? 'tinta-neutra' : 'tinta-azul'
   }
 
   return (
     <li>
       <button className="linha" onClick={() => abrir(l)}>
-        <span className="emoji" aria-hidden="true">{transf ? '🔁' : cat?.emoji || '📦'}</span>
+        <span className="emoji" aria-hidden="true">{retirada ? '🧁' : transf ? '🔁' : cat?.emoji || '📦'}</span>
         <span className="linha-texto">
           <span className="linha-titulo">{titulo}</span>
           <span className="linha-detalhe">
@@ -430,7 +541,7 @@ function somarPorCategoria(lancamentos) {
 
 // ---------------- Extrato ----------------
 
-function Extrato({ lancamentos, catPorId, pessoaPorId, contaPorId, membros, contas, periodo, abrir }) {
+function Extrato({ lancamentos, catPorId, pessoaPorId, contaPorId, membros, contas, periodo, escopo, abrir }) {
   const [tipo, setTipo] = useState('todos')
   const [quem, setQuem] = useState('todos')
   const [conta, setConta] = useState('todas')
@@ -439,7 +550,8 @@ function Extrato({ lancamentos, catPorId, pessoaPorId, contaPorId, membros, cont
     (l) =>
       (tipo === 'todos' || l.tipo === tipo) &&
       (quem === 'todos' || l.user_id === quem) &&
-      (conta === 'todas' || l.conta_id === conta || l.conta_destino_id === conta)
+      (conta === 'todas' || l.conta_id === conta || l.conta_destino_id === conta) &&
+      (tipo !== 'transferencia' || l.tipo === 'transferencia')
   )
   const dias = []
   for (const l of filtrados) {
@@ -447,13 +559,13 @@ function Extrato({ lancamentos, catPorId, pessoaPorId, contaPorId, membros, cont
     if (ult && ult.data === l.data) ult.itens.push(l)
     else dias.push({ data: l.data, itens: [l] })
   }
-  const total = filtrados.reduce((s, l) => s + efeito(l, conta), 0)
+  const total = filtrados.reduce((s, l) => s + (conta === 'todas' ? noCaderno(l, escopo, contaPorId) : efeito(l, conta)), 0)
 
   return (
     <>
       <div className="filtros">
         <div className="segmento pequeno">
-          {[['todos', 'Tudo'], ['despesa', 'Gastos'], ['receita', 'Entradas'], ['transferencia', 'Transf.']].map(([v, t]) => (
+          {[['todos', 'Tudo'], ['despesa', 'Gastos'], ['receita', 'Entradas'], ['transferencia', escopo === 'negocio' ? 'Retiradas' : 'Transf.']].map(([v, t]) => (
             <button key={v} aria-pressed={tipo === v} onClick={() => setTipo(v)}>{t}</button>
           ))}
         </div>
@@ -498,7 +610,7 @@ function Extrato({ lancamentos, catPorId, pessoaPorId, contaPorId, membros, cont
                 </h2>
                 <ul className="linhas">
                   {d.itens.map((l) => (
-                    <Linha key={l.id} l={l} cat={catPorId[l.categoria_id]} pessoa={pessoaPorId[l.user_id]} contaPorId={contaPorId} abrir={abrir} contaFoco={conta} />
+                    <Linha key={l.id} l={l} cat={catPorId[l.categoria_id]} pessoa={pessoaPorId[l.user_id]} contaPorId={contaPorId} abrir={abrir} contaFoco={conta} escopo={escopo} />
                   ))}
                 </ul>
               </section>
@@ -512,7 +624,7 @@ function Extrato({ lancamentos, catPorId, pessoaPorId, contaPorId, membros, cont
 
 // ---------------- Categorias ----------------
 
-function Categorias({ api, lancamentos, categorias, familiaId, periodo, aoMudar, aviso }) {
+function Categorias({ api, lancamentos, categorias, familiaId, periodo, escopo = 'casa', aoMudar, aviso }) {
   const [editando, setEditando] = useState(null)
   const [tipo, setTipo] = useState('despesa')
   const somas = useMemo(() => {
@@ -591,7 +703,7 @@ function Categorias({ api, lancamentos, categorias, familiaId, periodo, aoMudar,
           )
         })}
       </ul>
-      <button className="botao secundario largo" onClick={() => setEditando({ nome: '', emoji: '', tipo, limite: null, ordem: lista.length + 1, familia_id: familiaId })}>
+      <button className="botao secundario largo" onClick={() => setEditando({ nome: '', emoji: '', tipo, limite: null, ordem: lista.length + 1, familia_id: familiaId, escopo })}>
         Nova categoria
       </button>
 
@@ -615,6 +727,7 @@ function EditarCategoria({ cat, aoSalvar, aoExcluir, aoFechar }) {
       id: cat.id,
       familia_id: cat.familia_id,
       tipo: cat.tipo,
+      escopo: cat.escopo || 'casa',
       ordem: cat.ordem,
       nome: nome.trim(),
       emoji: emoji.trim() || '📦',
@@ -623,7 +736,7 @@ function EditarCategoria({ cat, aoSalvar, aoExcluir, aoFechar }) {
   }
 
   return (
-    <Folha titulo={cat.id ? 'Editar categoria' : 'Nova categoria'} aoFechar={aoFechar}>
+    <Folha titulo={cat.id ? 'Editar categoria' : 'Nova categoria'} aoFechar={aoFechar} classe={cat.escopo === 'negocio' ? 'folha-negocio' : ''}>
       <form className="formulario" onSubmit={enviar}>
         <div className="linha-campos">
           <label className="campo emoji-campo">
@@ -660,7 +773,25 @@ function EditarCategoria({ cat, aoSalvar, aoExcluir, aoFechar }) {
 
 // ---------------- Ajustes ----------------
 
-function Ajustes({ api, membro, familia, membros, recarregar, aoSair, aviso }) {
+function Ajustes({ api, nomeNegocio, trocarEscopo, membro, familia, membros, recarregar, aoSair, aviso }) {
+  const [nomeNovo, setNomeNovo] = useState('Benjoca Brownies')
+  const [ativando, setAtivando] = useState(false)
+
+  async function ativar(e) {
+    e.preventDefault()
+    setAtivando(true)
+    try {
+      await api.ativarNegocio(nomeNovo.trim())
+      await recarregar()
+      aviso('Caderno do negócio ligado')
+      trocarEscopo('negocio')
+    } catch (err) {
+      aviso(textoErro(err))
+    } finally {
+      setAtivando(false)
+    }
+  }
+
   const [meuNome, setMeuNome] = useState(membro.nome)
   const [nomeCasa, setNomeCasa] = useState(familia.nome)
   const [token, setToken] = useState(membro.token_atalho)
@@ -737,6 +868,28 @@ function Ajustes({ api, membro, familia, membros, recarregar, aoSair, aviso }) {
           </label>
           <button className="botao secundario">Salvar nomes</button>
         </form>
+      </section>
+
+      <section className="bloco">
+        <h2>Caderno do negócio</h2>
+        {nomeNegocio ? (
+          <p className="nota">
+            Ligado para <strong>{familia.negocio_nome}</strong>. Troque entre Casa e {nomeNegocio} no alto da tela. No atalho do iPhone, escolher a conta
+            “Caixa {nomeNegocio}” anota direto no caderno do negócio.
+          </p>
+        ) : (
+          <form className="formulario" onSubmit={ativar}>
+            <p className="nota">
+              Um segundo caderno, separado da casa, para as vendas e compras do negócio. Cria a conta “Caixa” do negócio e as categorias dele. O que for
+              retirado para a casa aparece como entrada na casa.
+            </p>
+            <label className="campo">
+              <span>Nome do negócio</span>
+              <input value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} />
+            </label>
+            <button className="botao secundario" disabled={ativando || !nomeNovo.trim()}>{ativando ? 'Ligando…' : 'Ligar caderno do negócio'}</button>
+          </form>
+        )}
       </section>
 
       <section className="bloco">

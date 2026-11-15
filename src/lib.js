@@ -131,3 +131,55 @@ export function situacaoDivida(c, pagamentos) {
   const fim = new Date(ai, mi - 1 + (c.total_parcelas - c.parcela_inicial), 1)
   return { pagas, restantes, falta: restantes * c.valor, fim: { ano: fim.getFullYear(), mes: fim.getMonth() } }
 }
+
+// ---------- Casa e negócio ----------
+
+// Retirada: dinheiro que sai de uma conta do negócio para uma conta da casa
+export function ehRetirada(l, contaPorId) {
+  return l.tipo === 'transferencia' && contaPorId[l.conta_id]?.negocio && contaPorId[l.conta_destino_id] && !contaPorId[l.conta_destino_id].negocio
+}
+
+// O que aparece em cada caderno
+export function doCaderno(l, escopo, contaPorId) {
+  const esc = l.escopo || 'casa'
+  if (escopo === 'negocio') return esc === 'negocio'
+  return esc === 'casa' || ehRetirada(l, contaPorId)
+}
+
+// ---------- Produção ----------
+
+export const UNIDADES = { kg: 'kg', g: 'g', L: 'L', ml: 'ml', un: 'un' }
+
+// Custos atuais: receita (total e por unidade de rendimento) e produto (custo de 1 unidade)
+export function custosProducao({ insumos = [], receitas = [], receitaItens = [], produtos = [], produtoItens = [] }) {
+  const preco = Object.fromEntries(insumos.map((i) => [i.id, +i.preco]))
+  const receita = {}
+  for (const r of receitas) receita[r.id] = { total: 0, unidade: 0 }
+  for (const it of receitaItens) {
+    if (receita[it.receita_id]) receita[it.receita_id].total += (preco[it.insumo_id] || 0) * +it.quantidade
+  }
+  for (const r of receitas) receita[r.id].unidade = receita[r.id].total / (+r.rendimento || 1)
+  const produto = {}
+  for (const p of produtos) produto[p.id] = 0
+  for (const it of produtoItens) {
+    if (it.produto_id in produto) produto[it.produto_id] += (receita[it.receita_id]?.unidade || 0) * +it.quantidade
+  }
+  return { receita, produto }
+}
+
+// "1.234,56" | "1234.56" -> número (ou null)
+export function lerNumero(txt) {
+  const s = String(txt ?? '').trim().replace(/[^0-9,.]/g, '')
+  if (!s) return null
+  const n = s.includes(',') ? Number(s.replace(/\./g, '').replace(',', '.')) : Number(s)
+  return Number.isFinite(n) ? n : null
+}
+
+const qtd = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 })
+export const quantidade = (v) => qtd.format(Number(v) || 0)
+
+export function dataCurta(iso) {
+  if (!iso) return ''
+  const [a, m, d] = iso.split('-')
+  return `${d}/${m}/${a}`
+}

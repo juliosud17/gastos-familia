@@ -12,8 +12,10 @@ function lerValor(txt) {
   return Number.isFinite(n) ? n : null
 }
 
-export default function Contas({ api, contas, saldos, lancamentos, periodo, familiaId, aoMudar, aviso, novaTransferencia }) {
+export default function Contas({ api, contas: todas, saldos, nomeNegocio, lancamentos, periodo, familiaId, aoMudar, aviso, novaTransferencia }) {
   const [editando, setEditando] = useState(null)
+  const contas = todas.filter((c) => !c.negocio)
+  const doNegocio = todas.filter((c) => c.negocio)
 
   const total = contas.reduce((s, c) => s + (saldos[c.id] || 0), 0)
   const porTipo = (t) => contas.filter((c) => c.tipo === t).reduce((s, c) => s + (saldos[c.id] || 0), 0)
@@ -21,13 +23,13 @@ export default function Contas({ api, contas, saldos, lancamentos, periodo, fami
 
   const movimentoMes = useMemo(() => {
     const r = {}
-    for (const c of contas) r[c.id] = 0
+    for (const c of todas) r[c.id] = 0
     for (const l of lancamentos || []) {
       if (l.conta_id in r) r[l.conta_id] += efeito(l, l.conta_id)
       if (l.tipo === 'transferencia' && l.conta_destino_id in r) r[l.conta_destino_id] += efeito(l, l.conta_destino_id)
     }
     return r
-  }, [contas, lancamentos])
+  }, [todas, lancamentos])
 
   async function salvar(c) {
     try {
@@ -75,46 +77,63 @@ export default function Contas({ api, contas, saldos, lancamentos, periodo, fami
         ) : (
           <ul className="linhas">
             {contas.map((c) => {
-              const saldo = saldos[c.id] || 0
-              const mov = movimentoMes[c.id] || 0
-              return (
-                <li key={c.id}>
-                  <button className="linha" onClick={() => setEditando({ ...c, saldo })}>
-                    <span className="emoji" aria-hidden="true">{c.emoji}</span>
-                    <span className="linha-texto">
-                      <span className="linha-titulo">{c.nome}</span>
-                      <span className="linha-detalhe">
-                        <span className="detalhe-texto">
-                          {TIPOS[c.tipo]}
-                          {mov !== 0 && `, ${mov > 0 ? '+' : '−'}${numero(mov)} em ${MESES[periodo.mes]}`}
-                        </span>
-                      </span>
-                    </span>
-                    <span className={'linha-valor' + (saldo < 0 ? ' tinta-vermelha' : '')}>{dinheiro(saldo)}</span>
-                  </button>
-                </li>
-              )
+              return <LinhaConta key={c.id} c={c} saldo={saldos[c.id] || 0} mov={movimentoMes[c.id] || 0} periodo={periodo} abrir={setEditando} />
             })}
           </ul>
         )}
         <p className="nota nota-contas">Toque numa conta para mudar o nome ou acertar o saldo com o que você tem de verdade.</p>
         <button
           className="botao secundario largo"
-          onClick={() => setEditando({ nome: '', emoji: '', tipo: 'banco', saldo_inicial: 0, saldo: 0, ordem: contas.length + 1, familia_id: familiaId })}
+          onClick={() => setEditando({ nome: '', emoji: '', tipo: 'banco', saldo_inicial: 0, saldo: 0, negocio: false, ordem: todas.length + 1, familia_id: familiaId })}
         >
           Nova conta
         </button>
       </section>
 
-      {editando && <EditarConta conta={editando} aoSalvar={salvar} aoExcluir={excluir} aoFechar={() => setEditando(null)} />}
+      {nomeNegocio && (
+        <section className="bloco bloco-negocio">
+          <div className="cabeca-bloco">
+            <h2>Caixa {nomeNegocio}</h2>
+          </div>
+          <p className="nota">É dinheiro do negócio, mesmo que esteja no mesmo banco. Não entra no guardado da casa. O que vier para a casa, anote como retirada no caderno do negócio.</p>
+          <ul className="linhas">
+            {doNegocio.map((c) => (
+              <LinhaConta key={c.id} c={c} saldo={saldos[c.id] || 0} mov={movimentoMes[c.id] || 0} periodo={periodo} abrir={setEditando} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {editando && <EditarConta conta={editando} temNegocio={Boolean(nomeNegocio)} aoSalvar={salvar} aoExcluir={excluir} aoFechar={() => setEditando(null)} />}
     </>
   )
 }
 
-function EditarConta({ conta, aoSalvar, aoExcluir, aoFechar }) {
+function LinhaConta({ c, saldo, mov, periodo, abrir }) {
+  return (
+    <li>
+      <button className="linha" onClick={() => abrir({ ...c, saldo })}>
+        <span className="emoji" aria-hidden="true">{c.emoji}</span>
+        <span className="linha-texto">
+          <span className="linha-titulo">{c.nome}</span>
+          <span className="linha-detalhe">
+            <span className="detalhe-texto">
+              {TIPOS[c.tipo]}
+              {mov !== 0 && `, ${mov > 0 ? '+' : '−'}${numero(mov)} em ${MESES[periodo.mes]}`}
+            </span>
+          </span>
+        </span>
+        <span className={'linha-valor' + (saldo < 0 ? ' tinta-vermelha' : '')}>{dinheiro(saldo)}</span>
+      </button>
+    </li>
+  )
+}
+
+function EditarConta({ conta, temNegocio, aoSalvar, aoExcluir, aoFechar }) {
   const [nome, setNome] = useState(conta.nome)
   const [emoji, setEmoji] = useState(conta.emoji)
   const [tipo, setTipo] = useState(conta.tipo)
+  const [negocio, setNegocio] = useState(Boolean(conta.negocio))
   const [saldoTxt, setSaldoTxt] = useState(conta.id ? (conta.saldo < 0 ? '-' : '') + numero(conta.saldo) : '')
   const [confirmar, setConfirmar] = useState(false)
   const [erro, setErro] = useState('')
@@ -132,6 +151,7 @@ function EditarConta({ conta, aoSalvar, aoExcluir, aoFechar }) {
       nome: nome.trim(),
       emoji: emoji.trim() || (tipo === 'dinheiro' ? '💵' : '🏦'),
       tipo,
+      negocio,
       saldo_inicial: Math.round((desejado - movimentado) * 100) / 100,
     })
   }
@@ -157,6 +177,12 @@ function EditarConta({ conta, aoSalvar, aoExcluir, aoFechar }) {
           <span>Quanto tem nela hoje</span>
           <input inputMode="decimal" value={saldoTxt} onChange={(e) => setSaldoTxt(e.target.value)} placeholder="0,00" />
         </label>
+        {temNegocio && (
+          <label className="campo-check">
+            <input type="checkbox" checked={negocio} onChange={(e) => setNegocio(e.target.checked)} />
+            <span>É dinheiro do negócio</span>
+          </label>
+        )}
         <p className="nota">
           {conta.id
             ? 'Se o valor não bater com o real, corrija aqui. As anotações antigas continuam do jeito que estão.'

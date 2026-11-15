@@ -30,7 +30,9 @@ const TITULOS = {
   transferencia: ['Transferir entre contas', 'Transferir'],
 }
 
-export default function Lancar({ inicial, categorias, contas, membros, eu, aoSalvar, aoExcluir, aoFechar }) {
+export default function Lancar({ inicial, categorias, contas, destinos, escopo = 'casa', membros, eu, aoSalvar, aoExcluir, aoFechar }) {
+  const negocio = escopo === 'negocio'
+  const listaDestino = destinos || contas
   const ed = inicial.editar
   const ultima = lerUltimaConta()
   const contaPadrao = contas.some((c) => c.id === ultima) ? ultima : contas[0]?.id || null
@@ -58,12 +60,13 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
 
   useEffect(() => {
     if (categoriaId && !daVez.some((c) => c.id === categoriaId)) setCategoriaId(null)
-    if (tipo === 'transferencia' && !destinoId) setDestinoId(contas.find((c) => c.id !== contaId)?.id || null)
+    if (tipo === 'transferencia' && !destinoId) setDestinoId(listaDestino.find((c) => c.id !== contaId)?.id || null)
+    if (tipo === 'transferencia' && !contas.some((c) => c.id === contaId)) setContaId(contas[0]?.id || null)
   }, [tipo]) // eslint-disable-line
 
   // Se a conta de origem virar a mesma do destino, troca o destino
   useEffect(() => {
-    if (transferencia && destinoId === contaId) setDestinoId(contas.find((c) => c.id !== contaId)?.id || null)
+    if (transferencia && destinoId === contaId) setDestinoId(listaDestino.find((c) => c.id !== contaId)?.id || null)
   }, [contaId]) // eslint-disable-line
 
   const valor = (Number(centavos) || 0) / 100
@@ -80,7 +83,7 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
     setEnviando(true)
     setErro('')
     try {
-      if (!transferencia) guardarUltimaConta(contaId)
+      if (!transferencia && !negocio) guardarUltimaConta(contaId)
       await aoSalvar({
         id: ed?.id,
         tipo,
@@ -91,6 +94,7 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
         descricao: descricao.trim() || null,
         data,
         user_id: quem,
+        escopo: ed?.escopo || escopo,
         ...(!ed && inicial.compromisso_id ? { compromisso_id: inicial.compromisso_id, referencia: inicial.referencia } : {}),
       })
     } catch (err) {
@@ -100,15 +104,18 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
   }
 
   const tom = transferencia ? 'tom-tinta' : despesa ? 'tom-vermelho' : 'tom-azul'
+  const titulos = negocio
+    ? { despesa: ['Gasto do negócio', 'Anotar gasto'], receita: ['Entrada do negócio', 'Anotar entrada'], transferencia: ['Retirada para casa', 'Anotar retirada'] }
+    : TITULOS
 
   return (
-    <Folha titulo={ed ? 'Editar anotação' : inicial.titulo || TITULOS[tipo][0]} aoFechar={aoFechar} classe={tom}>
+    <Folha titulo={ed ? 'Editar anotação' : inicial.titulo || titulos[tipo][0]} aoFechar={aoFechar} classe={tom + (negocio ? ' folha-negocio' : '')}>
       <form className="formulario" onSubmit={salvar}>
         {!inicial.compromisso_id && <div className="segmento tipo">
           <button type="button" aria-pressed={despesa} className="opcao-gasto" onClick={() => setTipo('despesa')}>Gasto</button>
           <button type="button" aria-pressed={tipo === 'receita'} className="opcao-entrada" onClick={() => setTipo('receita')}>Entrada</button>
-          {contas.length > 1 && (
-            <button type="button" aria-pressed={transferencia} onClick={() => setTipo('transferencia')}>Transferir</button>
+          {(negocio ? listaDestino.length > 0 : contas.length > 1) && (
+            <button type="button" aria-pressed={transferencia} onClick={() => setTipo('transferencia')}>{negocio ? 'Retirada' : 'Transferir'}</button>
           )}
         </div>}
 
@@ -127,7 +134,7 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
 
         {contas.length > 0 && (
           <EscolhaConta
-            rotulo={transferencia ? 'Sai de' : despesa ? 'Saiu de' : 'Entrou em'}
+            rotulo={transferencia ? (negocio ? 'Sai do caixa' : 'Sai de') : despesa ? 'Saiu de' : 'Entrou em'}
             contas={contas}
             valor={contaId}
             aoEscolher={setContaId}
@@ -135,7 +142,7 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
           />
         )}
         {transferencia && (
-          <EscolhaConta rotulo="Vai para" contas={contas.filter((c) => c.id !== contaId)} valor={destinoId} aoEscolher={setDestinoId} />
+          <EscolhaConta rotulo={negocio ? 'Vai para a casa, na conta' : 'Vai para'} contas={listaDestino.filter((c) => c.id !== contaId)} valor={destinoId} aoEscolher={setDestinoId} />
         )}
 
         {!transferencia && (
@@ -161,7 +168,11 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
           <input
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
-            placeholder={transferencia ? 'Ex.: saque, guardar na poupança' : despesa ? 'Ex.: feira, luz, farmácia' : 'Ex.: salário, freela'}
+            placeholder={
+              negocio
+                ? transferencia ? 'Ex.: retirada da semana' : despesa ? 'Ex.: chocolate, potes, motoboys' : 'Ex.: repasse iFood, vendas da noite'
+                : transferencia ? 'Ex.: saque, guardar na poupança' : despesa ? 'Ex.: feira, luz, farmácia' : 'Ex.: salário, freela'
+            }
           />
         </label>
 
@@ -185,7 +196,7 @@ export default function Lancar({ inicial, categorias, contas, membros, eu, aoSal
         {erro && <p className="aviso erro">{erro}</p>}
 
         <button className={'botao principal ' + (transferencia ? '' : despesa ? 'vermelho' : 'azul')} disabled={enviando}>
-          {enviando ? 'Salvando…' : ed ? 'Salvar alterações' : inicial.compromisso_id ? 'Marcar como pago' : TITULOS[tipo][1]}
+          {enviando ? 'Salvando…' : ed ? 'Salvar alterações' : inicial.compromisso_id ? 'Marcar como pago' : titulos[tipo][1]}
         </button>
 
         {ed &&
