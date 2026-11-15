@@ -1,13 +1,37 @@
-nome,rendimento,unidade,custo_total,custo_unitario,ingredientes
-Creme de Chocolate,480,g,17.83,0.04,PENDENTE
-Creme de Ninho,10,un,14.25,1.43,PENDENTE
-Massa,25,un,15.99,0.64,PENDENTE
-Massa Potes,13,un,15.99,1.23,PENDENTE
-Mousse Limão,6,un,14.95,2.49,PENDENTE
-Mousse Maracujá,790,g,20.22,0.03,PENDENTE
-Nutella Brownie,1,un,0.25,0.25,PENDENTE
-Nutella Pote,1,un,0.50,0.50,PENDENTE
-Pote,1,un,1.10,1.10,PENDENTE
-Recheio Brigadeiro,17,un,13.23,0.78,PENDENTE
-Recheio de Ninho,28,un,12.53,0.45,PENDENTE
-Recheio doce de Leite,1,un,0.68,0.68,PENDENTE
+receita,rendimento,unidade_rendimento,insumo,quantidade
+Creme de Chocolate,480,g,Creme de Leite,1
+Creme de Chocolate,480,g,Doce de Leite,0.2
+Creme de Chocolate,480,g,Chocolate em Pó,0.11
+Creme de Chocolate,480,g,Doce triângulo,0.4
+Creme de Ninho,10,un,Leite Condensado,1
+Creme de Ninho,10,un,Creme de Leite,1
+Creme de Ninho,10,un,Leite em Pó,0.13
+Creme de Ninho,10,un,Manteiga,0.03
+Massa,25,un,Chocolate em Pó,0.16
+Massa,25,un,Açúcar,0.57
+Massa,25,un,Farinha,0.22
+Massa,25,un,Óleo,0.2
+Massa,25,un,Ovos,6
+Massa Potes,13,un,Açúcar,0.57
+Massa Potes,13,un,Chocolate em Pó,0.16
+Massa Potes,13,un,Farinha,0.22
+Massa Potes,13,un,Óleo,0.2
+Massa Potes,13,un,Ovos,6
+Mousse Limão,6,un,Leite Condensado,1
+Mousse Limão,6,un,Creme de Leite,1.5
+Mousse Limão,6,un,Limão,0.3
+Mousse Maracujá,790,g,Creme de Leite,1
+Mousse Maracujá,790,g,Leite Condensado,1
+Mousse Maracujá,790,g,Maracujá,0.21
+Nutella Brownie,1,un,Nutella,0.006
+Nutella Pote,1,un,Nutella,0.012
+Pote,1,un,Potes,1
+Recheio Brigadeiro,17,un,Chocolate em Pó,0.04
+Recheio Brigadeiro,17,un,Creme de Leite,0.25
+Recheio Brigadeiro,17,un,Leite Condensado,1
+Recheio Brigadeiro,17,un,Lata creme de leite,0.5
+Recheio de Ninho,28,un,Creme de Leite,0.25
+Recheio de Ninho,28,un,Leite Condensado,1
+Recheio de Ninho,28,un,Leite em Pó,0.045
+Recheio de Ninho,28,un,Lata creme de leite,0.5
+Recheio doce de Leite,1,un,Doce de Leite,0.025
