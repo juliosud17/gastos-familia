@@ -66,7 +66,15 @@ Decisões do Julio (15/11/2026):
   Complementos dos combos (obrigatórios): cliente escolhe o sabor de cada unidade — grupo de potes (Ninho c/ Nutella,
   Chocolate, Maracujá; Limão pausado), R$ 0,00; grupo de brownies (Doce de Leite, Brigadeiro, Ninho c/ Nutella R$ 0,00;
   **Ovomaltine + R$ 1,99**). Mesma lógica em todos os combos. Então: valor do pedido = preço do combo + 1,99 × Ovomaltines.
-- Bloco 3: dinheiro do iFood (taxas, %, dia do repasse — cai toda quarta —, incentivos).
+- Bloco 3: dinheiro do iFood — **recebido em 15/11/2026**:
+  - Comissão do iFood: 12% ou 15,5% do total do pedido; o Julio quer usar **sempre 15,5%** (é a maioria).
+    Mensalidade e taxa de repasse: ele ainda vai ver (deixar configurável).
+  - Repasse cai toda quarta; período provavelmente quarta a terça (ele não tem certeza — deixar configurável).
+  - Preço riscado ("de R$ 28 por R$ 19,99") é desconto "fake": o iFood não paga nada, vale o preço verde.
+  - Entrega do iFood é feita pelos **motoboys da pizzaria** (taxa R$ 4 a 8 conforme o bairro), não pelo iFood.
+  - **Reserva dos boys**: o preço "real" do pote é R$ 17; no iFood é 19,99 → sobra 2,99; tirando 15,5% fica **R$ 2,52 por pote pago**
+    vendido no iFood, que vai para pagar as taxas dos motoboys. Potes grátis dos combos não contam (3+1 → 3; 2 potes+1 brownie → 2).
+    Brownies não entram na reserva. Ideia para o fechamento: mostrar reserva × taxas pagas na noite (sobrou/faltou).
 - Bloco 4: noite na pizzaria (preços lá, de que dependem as taxas 4/6/7/8, o que significam "107" e "21" no papel, se ele paga algo à pizzaria do irmão).
 - Bloco 5: decisões — histórico do Meu Bolso entra ou não, meta (R$ 10.000/mês?), divisão de luz/gás entre casa e negócio (%).
 - Ele avisou que os preços do iFood são um pouco maiores que os da pizzaria, para cobrir a taxa.
