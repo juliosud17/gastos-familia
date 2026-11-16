@@ -161,7 +161,7 @@ export const apiReal = {
     ok(await supabase.from('pedidos').delete().eq('id', id))
   },
   async noites(familiaId) {
-    return ok(await supabase.from('noites').select('id, data, fechada, resumo, pegou').eq('familia_id', familiaId).order('data', { ascending: false }))
+    return ok(await supabase.from('noites').select('id, data, fechada, resumo, pegou, levou, sobrou').eq('familia_id', familiaId).order('data', { ascending: false }))
   },
   async buscas(familiaId) {
     return ok(await supabase.from('buscas').select('*').eq('familia_id', familiaId).order('data', { ascending: false }))
@@ -184,6 +184,17 @@ export const apiReal = {
   },
   async salvarConfigNegocio(familiaId, cfg) {
     ok(await supabase.from('familias').update({ negocio_config: cfg }).eq('id', familiaId))
+  },
+  // ---------- Estoque ----------
+  async compras(familiaId) {
+    return ok(await supabase.from('compras_insumo').select('*').eq('familia_id', familiaId).order('data', { ascending: false }))
+  },
+  async salvarCompra(c) {
+    return ok(await supabase.from('compras_insumo').insert(c).select().single())
+  },
+  async excluirCompra(c) {
+    ok(await supabase.from('compras_insumo').delete().eq('id', c.id))
+    if (c.lancamento_id) ok(await supabase.from('lancamentos').delete().eq('id', c.lancamento_id))
   },
   assinar(familiaId, aoMudar) {
     const canal = supabase
@@ -305,7 +316,7 @@ function semente() {
   lancamentos.push({ ...l(2, 'despesa', 125, 'Casa', 'Botijão de gás', 'ela', esp), escopo: 'casa' })
   for (const x of lancamentos) x.escopo = x.escopo || 'casa'
   // Produção a partir dos cadastros reais da Benjoca
-  const insumos = seedBenjoca.insumos.map(([nome, unidade, preco, atualizado_em, estoque]) => ({ id: uid(), familia_id: fam, nome, unidade, preco, atualizado_em, estoque, estoque_em: '2026-07-07' }))
+  const insumos = seedBenjoca.insumos.map(([nome, unidade, preco, atualizado_em, estoque]) => ({ id: uid(), familia_id: fam, nome, unidade, preco, atualizado_em, estoque, estoque_em: diasAtras(10), estoque_minimo: null }))
   const iid = (nome) => insumos.find((x) => x.nome === nome).id
   const receitas = []
   const receitaItens = []
@@ -371,6 +382,7 @@ function semente() {
     noites,
     pedidos,
     buscas,
+    compras: [],
     membro: { ...eu, familia_id: fam, token_atalho: 'demo0000demo0000demo0000demo0000' },
     familia: { id: fam, nome: 'Casa Antunes', codigo: 'K7Q2MX', negocio_nome: 'Benjoca Brownies', negocio_config: {} },
     producao: { insumos, receitas, receitaItens, produtos, produtoItens },
@@ -483,7 +495,10 @@ export function criarApiDemo() {
         const i = db.lancamentos.findIndex((x) => x.id === l.id)
         db.lancamentos[i] = { ...db.lancamentos[i], ...l }
       } else {
-        db.lancamentos.push({ ...l, id: uid(), data: l.data || hojeISO(), created_at: new Date().toISOString() })
+        const novo = { ...l, id: uid(), data: l.data || hojeISO(), created_at: new Date().toISOString() }
+        db.lancamentos.push(novo)
+        avisar()
+        return novo
       }
       avisar()
     },
@@ -537,7 +552,7 @@ export function criarApiDemo() {
       db.pedidos = db.pedidos.filter((p) => p.id !== id)
     },
     async noites() {
-      return [...db.noites].sort((a, b) => b.data.localeCompare(a.data)).map(({ id, data, fechada, resumo, pegou }) => ({ id, data, fechada, resumo, pegou }))
+      return [...db.noites].sort((a, b) => b.data.localeCompare(a.data)).map(({ id, data, fechada, resumo, pegou, levou, sobrou }) => ({ id, data, fechada, resumo, pegou, levou, sobrou }))
     },
     async buscas() {
       return [...db.buscas].sort((a, b) => b.data.localeCompare(a.data))
@@ -567,6 +582,19 @@ export function criarApiDemo() {
     },
     async salvarConfigNegocio(_f, cfg) {
       db.familia.negocio_config = cfg
+    },
+    async compras() {
+      return [...db.compras].sort((a, b) => b.data.localeCompare(a.data))
+    },
+    async salvarCompra(c) {
+      const nova = { ...c, id: uid(), data: c.data || hojeISO(), created_at: new Date().toISOString() }
+      db.compras.push(nova)
+      return nova
+    },
+    async excluirCompra(c) {
+      db.compras = db.compras.filter((x) => x.id !== c.id)
+      if (c.lancamento_id) db.lancamentos = db.lancamentos.filter((l) => l.id !== c.lancamento_id)
+      avisar()
     },
     assinar(_f, aoMudar) {
       ouvintes.add(aoMudar)

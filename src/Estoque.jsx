@@ -1,0 +1,296 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { dinheiro, textoErro, lerNumero, quantidade as qtdLivre, dataCurta, hojeISO } from './lib.js'
+
+// Estoque calculado tem muitas casas: 1 casa para unidades, 2 para kg/L
+const quantidade = (v) => {
+  const n = Number(v) || 0
+  return qtdLivre(Math.abs(n) >= 10 || Number.isInteger(n) ? Math.round(n * 10) / 10 : Math.round(n * 100) / 100)
+}
+import Folha from './Folha.jsx'
+import { situacaoEstoque } from './estoque.js'
+
+export function useEstoque(api, familiaId, dados) {
+  const [extra, setExtra] = useState(null) // { noites, compras }
+  const carregar = useCallback(async () => {
+    const [noites, compras] = await Promise.all([api.noites(familiaId), api.compras(familiaId)])
+    setExtra({ noites, compras })
+  }, [api, familiaId])
+  const sit = useMemo(() => (dados && extra ? situacaoEstoque(dados, extra.noites, extra.compras) : null), [dados, extra])
+  return { sit, compras: extra?.compras || [], carregar }
+}
+
+const textoDura = (d) => (d === null ? 'sem uso nas noites' : d < 1 ? 'acaba hoje' : `dura ~${Math.floor(d)} ${Math.floor(d) === 1 ? 'dia' : 'dias'}`)
+
+export default function Estoque({ api, familia, dados, categorias, contaNegocio, aviso, recarregar }) {
+  const { sit, compras, carregar } = useEstoque(api, familia.id, dados)
+  const [aberto, setAberto] = useState(null) // item da situação
+
+  useEffect(() => {
+    carregar().catch((e) => aviso(textoErro(e)))
+  }, [carregar]) // eslint-disable-line
+
+  if (!sit) return <p className="vazio">Calculando o estoque…</p>
+
+  const itens = [...sit.itens].sort((a, b) => Number(b.baixo) - Number(a.baixo) || (a.dura ?? 1e9) - (b.dura ?? 1e9) || a.insumo.nome.localeCompare(b.insumo.nome))
+  const contagens = sit.itens.map((x) => x.desde).filter(Boolean).sort()
+  const maisAntiga = contagens[0]
+  const velha = maisAntiga && (Date.now() - new Date(maisAntiga + 'T12:00:00')) / 864e5 > 30
+
+  async function compartilhar() {
+    const texto =
+      'Lista de compras da Benjoca:\n' +
+      sit.lista.map((x) => `- ${x.insumo.nome}: ${x.comprar > 0 ? quantidade(x.comprar) + ' ' + x.insumo.unidade : 'repor'}`).join('\n')
+    try {
+      if (navigator.share) await navigator.share({ text: texto })
+      else {
+        await navigator.clipboard.writeText(texto)
+        aviso('Lista copiada')
+      }
+    } catch {}
+  }
+
+  async function depois(msg) {
+    setAberto(null)
+    aviso(msg)
+    await recarregar()
+    await carregar()
+  }
+
+  return (
+    <>
+      {velha && (
+        <p className="aviso erro">
+          A contagem mais antiga é de {dataCurta(maisAntiga)}. Reconte o estoque: toque no insumo e use “Contei”.
+        </p>
+      )}
+
+      <section className={'lista-compras' + (sit.lista.length ? '' : ' vazia')}>
+        <div className="cabeca-bloco">
+          <h2>🛒 Lista de compras</h2>
+          {sit.lista.length > 0 && <button className="link" onClick={compartilhar}>Enviar</button>}
+        </div>
+        {sit.lista.length === 0 ? (
+          <p className="nota">Nada acabando. Entra aqui o que estiver abaixo do mínimo ou durar menos de 7 dias.</p>
+        ) : (
+          <ul className="lista-simples">
+            {sit.lista.map((x) => (
+              <li key={x.insumo.id} className="linha-conta">
+                <span>
+                  {x.insumo.nome}
+                  <small>tem {quantidade(Math.max(0, x.atual))} {x.insumo.unidade} · {textoDura(x.dura)}</small>
+                </span>
+                <strong>{x.comprar > 0 ? `${quantidade(x.comprar)} ${x.insumo.unidade}` : 'repor'}</strong>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {sit.semReceita.length > 0 && (
+        <p className="nota nota-contas">
+          {sit.semReceita.map((s) => s.nome).join(', ')} ainda não baixa o estoque: falta cadastrar a receita na aba Produtos.
+        </p>
+      )}
+
+      <p className="total-filtro">Estoque de agora = última contagem + compras − o que foi feito nas noites.</p>
+      <ul className="linhas lista-producao">
+        {itens.map((x) => (
+          <li key={x.insumo.id}>
+            <button className="linha" onClick={() => setAberto(x)}>
+              <span className="emoji" aria-hidden="true">{x.baixo ? '⚠️' : '🧺'}</span>
+              <span className="linha-texto">
+                <span className="linha-titulo">{x.insumo.nome}</span>
+                <span className="linha-detalhe">
+                  <span className={'detalhe-texto' + (x.baixo ? ' tom-falta' : '')}>
+                    {textoDura(x.dura)}
+                    {x.minimo !== null && ` · mínimo ${quantidade(x.minimo)}`}
+                  </span>
+                </span>
+              </span>
+              <span className="valores-producao">
+                <span className={'linha-valor' + (x.atual < 0 ? ' tinta-vermelha' : '')}>{quantidade(x.atual)} {x.insumo.unidade}</span>
+                <span className="sub-valor">contado {dataCurta(x.desde).slice(0, 5) || '—'}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {aberto && (
+        <EstoqueInsumo
+          item={aberto}
+          compras={compras.filter((c) => c.insumo_id === aberto.insumo.id && (!aberto.desde || c.data >= aberto.desde))}
+          api={api}
+          familia={familia}
+          categorias={categorias}
+          contaNegocio={contaNegocio}
+          aviso={aviso}
+          depois={depois}
+          aoFechar={() => setAberto(null)}
+        />
+      )}
+    </>
+  )
+}
+
+function EstoqueInsumo({ item, compras, api, familia, categorias, contaNegocio, aviso, depois, aoFechar }) {
+  const i = item.insumo
+  const [modo, setModo] = useState('comprei')
+  const [qtd, setQtd] = useState('')
+  const [valor, setValor] = useState('')
+  const [anotar, setAnotar] = useState(true)
+  const [minimo, setMinimo] = useState(item.minimo === null ? '' : quantidade(item.minimo))
+  const [salvando, setSalvando] = useState(false)
+  const q = lerNumero(qtd)
+  const v = lerNumero(valor)
+
+  async function enviar(e) {
+    e.preventDefault()
+    setSalvando(true)
+    try {
+      const base = { id: i.id, familia_id: i.familia_id || familia.id, nome: i.nome, unidade: i.unidade, preco: i.preco, atualizado_em: i.atualizado_em, estoque: i.estoque, estoque_em: i.estoque_em }
+      if (modo === 'comprei') {
+        if (!(q > 0)) throw new Error(`Diga quanto comprou (em ${i.unidade}).`)
+        let lancamento_id = null
+        if (anotar && v > 0) {
+          const cat = categorias.find((c) => c.escopo === 'negocio' && c.tipo === 'despesa' && c.nome.toLowerCase() === 'insumos')
+          const l = await api.salvarLancamento({
+            familia_id: familia.id, escopo: 'negocio', tipo: 'despesa', valor: v, categoria_id: cat?.id || null,
+            conta_id: contaNegocio?.id || null, descricao: `${i.nome} (${quantidade(q)} ${i.unidade})`, data: hojeISO(), origem: 'estoque',
+          })
+          lancamento_id = l?.id || null
+        }
+        await api.salvarCompra({ familia_id: familia.id, insumo_id: i.id, quantidade: q, valor: v || null, lancamento_id, data: hojeISO() })
+        // O preço do insumo passa a ser o da compra, e o custo dos produtos acompanha
+        if (v > 0) await api.salvarInsumo({ ...base, preco: Math.round((v / q) * 10000) / 10000, atualizado_em: hojeISO() })
+        await depois(v > 0 && anotar ? 'Compra anotada, gasto lançado e preço atualizado' : 'Compra anotada')
+      } else if (modo === 'contei') {
+        if (q === null) throw new Error(`Diga quanto tem agora (em ${i.unidade}).`)
+        await api.salvarInsumo({ ...base, estoque: q, estoque_em: hojeISO() })
+        await depois('Contagem salva')
+      } else {
+        const m = minimo.trim() ? lerNumero(minimo) : null
+        await api.salvarInsumo({ ...base, estoque_minimo: m })
+        await depois(m === null ? 'Sem mínimo' : 'Mínimo salvo')
+      }
+    } catch (err) {
+      aviso(textoErro(err))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function excluirCompra(c) {
+    try {
+      await api.excluirCompra(c)
+      await depois('Compra excluída' + (c.lancamento_id ? ' (e o gasto também)' : ''))
+    } catch (err) {
+      aviso(textoErro(err))
+    }
+  }
+
+  const u = i.unidade
+  return (
+    <Folha titulo={i.nome} aoFechar={aoFechar} classe="folha-negocio">
+      <div className="formulario">
+        <div className="fechamento pagina-pautada">
+          <p className="linha-conta"><span>Contagem{item.desde ? ` de ${dataCurta(item.desde)}` : ''}</span><strong>{quantidade(item.contagem)} {u}</strong></p>
+          <p className="linha-conta"><span>Comprou depois</span><strong className="tinta-verde">+ {quantidade(item.comprou)} {u}</strong></p>
+          <p className="linha-conta"><span>Usou nas noites</span><strong className="tinta-vermelha">− {quantidade(item.usou)} {u}</strong></p>
+          <p className="linha-conta soma"><span>Tem agora<small>{textoDura(item.dura)}{item.porDia > 0 && `, usa ~${quantidade(item.porDia * 7)} ${u} por semana`}</small></span><strong>{quantidade(item.atual)} {u}</strong></p>
+        </div>
+
+        <div className="segmento">
+          {[['comprei', 'Comprei'], ['contei', 'Contei'], ['minimo', 'Mínimo']].map(([m, t]) => (
+            <button key={m} type="button" aria-pressed={modo === m} onClick={() => setModo(m)}>{t}</button>
+          ))}
+        </div>
+
+        <form className="formulario" onSubmit={enviar}>
+          {modo === 'comprei' && (
+            <>
+              <div className="linha-campos">
+                <label className="campo">
+                  <span>Quantidade ({u})</span>
+                  <input inputMode="decimal" value={qtd} onChange={(e) => setQtd(e.target.value)} placeholder="0" autoFocus />
+                </label>
+                <label className="campo">
+                  <span>Pagou (R$)</span>
+                  <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" />
+                </label>
+              </div>
+              {q > 0 && v > 0 && <p className="nota">Sai {dinheiro(v / q)} por {u} (antes: {dinheiro(i.preco)}).</p>}
+              <label className="campo-check">
+                <input type="checkbox" checked={anotar} onChange={(e) => setAnotar(e.target.checked)} />
+                Anotar o gasto em Insumos no caderno da Benjoca
+              </label>
+              <button className="botao principal" disabled={salvando}>Anotar compra</button>
+            </>
+          )}
+          {modo === 'contei' && (
+            <>
+              <label className="campo">
+                <span>Quanto tem agora ({u})</span>
+                <input inputMode="decimal" value={qtd} onChange={(e) => setQtd(e.target.value)} placeholder={quantidade(Math.max(0, item.atual))} autoFocus />
+              </label>
+              <p className="nota">A contagem vira o novo ponto de partida. As noites de hoje em diante baixam dela.</p>
+              <button className="botao principal" disabled={salvando}>Salvar contagem</button>
+            </>
+          )}
+          {modo === 'minimo' && (
+            <>
+              <label className="campo">
+                <span>Avisar quando tiver menos de ({u})</span>
+                <input inputMode="decimal" value={minimo} onChange={(e) => setMinimo(e.target.value)} placeholder="sem mínimo" />
+              </label>
+              <p className="nota">Mesmo sem mínimo, entra na lista de compras se durar menos de 7 dias.</p>
+              <button className="botao principal" disabled={salvando}>Salvar mínimo</button>
+            </>
+          )}
+        </form>
+
+        {compras.length > 0 && (
+          <div>
+            <p className="rotulo-grupo">Compras depois da contagem</p>
+            <ul className="lista-simples">
+              {compras.slice(0, 6).map((c) => (
+                <li key={c.id} className="linha-conta">
+                  <span>{dataCurta(c.data).slice(0, 5)} · {quantidade(c.quantidade)} {u}</span>
+                  <span>
+                    <strong>{c.valor ? dinheiro(c.valor) : '—'}</strong>{' '}
+                    <button type="button" className="tirar" aria-label="Excluir compra" onClick={() => excluirCompra(c)}>×</button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </Folha>
+  )
+}
+
+// Aviso no Início do negócio quando tem insumo acabando
+export function AvisoEstoque({ api, familiaId, irPara }) {
+  const [dados, setDados] = useState(null)
+  const { sit, carregar } = useEstoque(api, familiaId, dados)
+  useEffect(() => {
+    api.producao(familiaId).then(setDados).catch(() => {})
+    carregar().catch(() => {})
+  }, [api, familiaId, carregar])
+  if (!sit || !sit.lista.length) return null
+  const n = sit.lista.length
+  return (
+    <button
+      className="alerta-limite"
+      onClick={() => {
+        try {
+          localStorage.setItem('caderneta-producao-aba', 'estoque')
+        } catch {}
+        irPara('producao')
+      }}
+    >
+      🛒 {n === 1 ? `${sit.lista[0].insumo.nome} está acabando` : `${n} insumos acabando`} · ver lista de compras
+    </button>
+  )
+}

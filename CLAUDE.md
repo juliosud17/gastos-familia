@@ -13,7 +13,7 @@ Ele está migrando a gestão da Benjoca do app "Meu Bolso" (Lovable, antunesdesp
 - Supabase: projeto `gastos-familia-dados` (ref `ghbaeaxcvbnlctaqwiyh`). URL e chave pública ficam em `src/lib.js`.
   SQL Editor direto: https://supabase.com/dashboard/project/ghbaeaxcvbnlctaqwiyh/sql/new
 - Migrações ficam em `supabase/` e o **Julio roda à mão** no SQL Editor, em ordem: `schema.sql`, `02-contas.sql`, `03-a-pagar.sql`, `04-benjoca.sql` (todas já rodadas em 15/11/2026),
-  `05-vendas.sql` (criado em 15/11/2026 — **confirmar se ele rodou**).
+  `05-vendas.sql` e `06-estoque.sql` (criados em 15/11/2026 — **confirmar se ele rodou**).
   Toda migração nova deve ser idempotente (`if not exists`, `create or replace`) e não apagar dados. Mande para ele o link do arquivo no GitHub + o link do SQL Editor.
 
 ## Stack e arquivos
@@ -25,6 +25,7 @@ React 18 + Vite 5, Supabase JS v2, sem roteador (aba no `location.hash`). Fonte 
 - `src/Painel.jsx` — casca do app: troca Casa/Benjoca, abas, Início, Extrato, Categorias, Ajustes.
 - `src/Lancar.jsx` — folha de gasto/entrada/transferência (no negócio, "Retirada").
 - `src/Contas.jsx` (Carteira), `src/APagar.jsx` (contas fixas e dívidas), `src/Producao.jsx` (insumos, receitas, produtos).
+- `src/estoque.js` (estoque calculado, `situacaoEstoque`) e `src/Estoque.jsx` (segmento Estoque da Produção + `AvisoEstoque` no Início do negócio).
 - `src/negocio.js` (lucro do negócio com divisão de luz/gás, meta, projeção de 28 dias, meses) e `src/Relatorio.jsx` (aba oculta `relatorio`, aberta pela meta no Início).
 - `src/vendas.js` (cardápio iFood, sabores, `contaNoite`, `acumulados`, `lancamentosDaNoite`, `CONFIG_PADRAO`) e `src/Vendas.jsx` (aba Vendas da noite).
 - `src/benjocaSeed.js` + `dados-benjoca/*.csv` — cadastros vindos do Meu Bolso.
@@ -76,8 +77,13 @@ Decisões do Julio (15/11/2026):
    - Relatório: vendas/gastos por categoria, contas de luz/gás que entraram, projeção (lucro do mês + média dos últimos 28 dias × dias restantes),
      noites fechadas do mês, últimos 6 meses com % da meta e variação (o mês em andamento não é comparado).
    - Falta: alertas (o Meu Bolso duplicava; aqui só existem os de vencimento, sem duplicar).
-5. Estoque calculado pelas vendas, lista de compras, avisos de estoque baixo.
-6. Resumo de 12 meses.
+5. Estoque — **feita em 15/11/2026** (SQL `06-estoque.sql`: `insumos.estoque_minimo`, tabela `compras_insumo`):
+   - Estoque de agora = contagem (`estoque`, `estoque_em`) + compras com data ≥ contagem − uso nas noites com data ≥ contagem.
+     Uso: "fez" por noite = levou − sobrou da noite anterior; sabor → produto da Produção por nome (`PISTAS`); produto → insumos pelas receitas.
+   - Lista de compras: abaixo do mínimo ou durando < 7 dias (média dos últimos 28 dias); sugestão = 2 semanas de uso (ou 2× mínimo) − o que tem; botão Enviar (share).
+   - "Comprei": anota compra, lança despesa "Insumos" na Caixa Benjoca (opcional) e atualiza o preço do insumo (valor/quantidade). "Contei": nova contagem.
+   - Ovomaltine não baixa estoque até ter produto/receita cadastrados. Estoque real ainda é a contagem de 07/07 — ele precisa recontar.
+6. Resumo de 12 meses — **feito em 15/11/2026**: Relatório com seletor 6/12 meses, totais do período, média por mês fechado, melhor mês, meses que bateram a meta.
    - Pendências do bloco 5: importar o histórico do Meu Bolso (pedir export/CSV ao Julio); dividir gás (70% Benjoca) e luz (30% Benjoca).
 7. Desligar o Lovable.
 

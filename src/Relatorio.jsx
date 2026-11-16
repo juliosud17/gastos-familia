@@ -10,8 +10,9 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
   const [noites, setNoites] = useState([])
   const [ajustes, setAjustes] = useState(false)
   const [verRateio, setVerRateio] = useState(false)
+  const [nMeses, setNMeses] = useState(6)
 
-  const meses = useMemo(() => ultimosMeses(periodo.ano, periodo.mes, 6), [periodo.ano, periodo.mes])
+  const meses = useMemo(() => ultimosMeses(periodo.ano, periodo.mes, nMeses), [periodo.ano, periodo.mes, nMeses])
 
   useEffect(() => {
     let vivo = true
@@ -148,17 +149,50 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
       </section>
 
       <section className="bloco">
-        <h2>Últimos 6 meses</h2>
+        <div className="cabeca-bloco">
+          <h2>Últimos {nMeses} meses</h2>
+          <div className="segmento segmento-pequeno">
+            {[6, 12].map((k) => (
+              <button key={k} aria-pressed={nMeses === k} onClick={() => setNMeses(k)}>{k}</button>
+            ))}
+          </div>
+        </div>
         {!comparacao ? (
           <p className="vazio">Carregando…</p>
         ) : (
-          <Comparacao meses={comparacao} meta={+cfg.metaLucro || 0} />
+          <>
+            <ResumoPeriodo meses={comparacao} meta={+cfg.metaLucro || 0} />
+            <Comparacao meses={comparacao} meta={+cfg.metaLucro || 0} />
+          </>
         )}
       </section>
 
       <button className="link ajustes-vendas" onClick={() => setAjustes(true)}>⚙️ Meta e divisão da luz e do gás</button>
 
       {ajustes && <AjustesMeta cfg={cfg} aoSalvar={salvarAjustes} aoFechar={() => setAjustes(false)} />}
+    </div>
+  )
+}
+
+// Totais do período (etapa 6): soma, média por mês fechado, melhor mês, meses que bateram a meta
+function ResumoPeriodo({ meses, meta }) {
+  const hoje = new Date()
+  const fechados = meses.filter((m) => !(m.ano === hoje.getFullYear() && m.mes === hoje.getMonth()))
+  const comDados = fechados.filter((m) => m.vendeu || m.gastou)
+  const soma = (k) => meses.reduce((s, m) => s + (k === 'gastou' ? m.gastou + m.rateio.total : m[k]), 0)
+  const media = comDados.length ? comDados.reduce((s, m) => s + m.lucro, 0) / comDados.length : null
+  const melhor = comDados.reduce((b, m) => (!b || m.lucro > b.lucro ? m : b), null)
+  const bateu = meta ? comDados.filter((m) => m.lucro >= meta).length : 0
+  return (
+    <div className="fechamento pagina-pautada resumo-periodo">
+      <p className="linha-conta"><span>Vendeu</span><strong className="tinta-verde">{dinheiro(soma('vendeu'))}</strong></p>
+      <p className="linha-conta"><span>Gastou<small>com a parte da luz e do gás</small></span><strong className="tinta-vermelha">{dinheiro(soma('gastou'))}</strong></p>
+      <p className="linha-conta soma"><span>Lucro no período</span><strong>{dinheiro(soma('lucro'))}</strong></p>
+      {media !== null && (
+        <p className="linha-conta"><span>Média por mês<small>{comDados.length} {comDados.length === 1 ? 'mês fechado' : 'meses fechados'} com anotações</small></span><strong>{dinheiro(media)}</strong></p>
+      )}
+      {melhor && <p className="linha-conta"><span>Melhor mês</span><strong>{MESES[melhor.mes]} · {dinheiro(melhor.lucro)}</strong></p>}
+      {meta > 0 && comDados.length > 0 && <p className="linha-conta"><span>Bateu a meta</span><strong>{bateu} de {comDados.length} {comDados.length === 1 ? 'mês' : 'meses'}</strong></p>}
     </div>
   )
 }

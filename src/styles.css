@@ -1921,3 +1921,37 @@ body:has(.modo-negocio) {
 .rateio-itens {
   margin-top: 6px;
 }
+
+/* ---------- Estoque (etapa 5) e 12 meses (etapa 6) ---------- */
+
+.lista-compras {
+  margin: 4px 0 18px;
+  padding: 12px 14px 6px;
+  border-radius: var(--raio);
+  border: 1.5px solid var(--caramelo, var(--pauta));
+  background: var(--papel-claro);
+}
+
+.lista-compras.vazia {
+  border-style: dashed;
+}
+
+.lista-compras h2 {
+  margin: 0;
+}
+
+.lista-compras .linha-conta:last-child {
+  border-bottom: 0;
+}
+
+.segmento-pequeno {
+  width: auto;
+}
+
+.segmento-pequeno button {
+  min-width: 44px;
+}
+
+.resumo-periodo {
+  margin-bottom: 8px;
+}

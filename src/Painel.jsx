@@ -8,6 +8,7 @@ import APagar from './APagar.jsx'
 import Producao from './Producao.jsx'
 import Vendas from './Vendas.jsx'
 import Relatorio from './Relatorio.jsx'
+import { AvisoEstoque } from './Estoque.jsx'
 import { configNegocio } from './vendas.js'
 import { numerosNegocio, situacaoMeta } from './negocio.js'
 
@@ -303,6 +304,8 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
             nomeNegocio={nomeNegocio}
             retirar={() => setFolha({ tipo: 'transferencia', escopo: 'negocio' })}
             meta={negocio ? situacaoMeta(totais.sobra, cfg, periodo.ano, periodo.mes) : null}
+            api={api}
+            familiaId={familia.id}
           />
         )}
         {aba === 'extrato' && (
@@ -358,7 +361,9 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
             aviso={mostrarAviso}
           />
         )}
-        {aba === 'producao' && negocio && <Producao api={api} familia={familia} aviso={mostrarAviso} />}
+        {aba === 'producao' && negocio && (
+          <Producao api={api} familia={familia} aviso={mostrarAviso} categorias={categorias} contaNegocio={contasNegocio[0] || null} />
+        )}
         {aba === 'relatorio' && negocio && (
           <Relatorio
             api={api}
@@ -431,7 +436,7 @@ function BotaoAba({ aba, ativa, onClick }) {
 
 // ---------------- Início ----------------
 
-function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, escopo, abrir, irPara, guardado, alertas = [], nomeNegocio, retirar, meta }) {
+function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, escopo, abrir, irPara, guardado, alertas = [], nomeNegocio, retirar, meta, api, familiaId }) {
   const negocio = escopo === 'negocio'
   const comLimite = categorias.filter((c) => c.tipo === 'despesa' && c.limite)
   const gastoPorCat = useMemo(() => somarPorCategoria(lancamentos), [lancamentos])
@@ -461,6 +466,7 @@ function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaP
           </p>
         )}
         {meta && lancamentos && <Meta meta={meta} irPara={irPara} />}
+        {negocio && <AvisoEstoque api={api} familiaId={familiaId} irPara={irPara} />}
         {!negocio && totais.retiradas > 0 && (
           <p className="linha-guardado sem-toque">
             <span>🧁 {nomeNegocio} trouxe para casa</span>

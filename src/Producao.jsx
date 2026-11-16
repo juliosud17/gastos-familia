@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dinheiro, numero, textoErro, custosProducao, lerNumero, quantidade, dataCurta, hojeISO, UNIDADES } from './lib.js'
 import Folha from './Folha.jsx'
+import Estoque from './Estoque.jsx'
 
 const TIPOS_PRODUTO = { brownie: 'Brownie', pote: 'Pote', outro: 'Outro' }
 
-export default function Producao({ api, familia, aviso }) {
+export default function Producao({ api, familia, aviso, categorias = [], contaNegocio = null }) {
   const [dados, setDados] = useState(null)
   const [aba, setAba] = useState(() => {
     try {
@@ -69,7 +70,7 @@ export default function Producao({ api, familia, aviso }) {
     <>
       <div className="filtros">
         <div className="segmento">
-          {[['produtos', 'Produtos'], ['receitas', 'Receitas'], ['insumos', 'Insumos']].map(([v, t]) => (
+          {[['estoque', 'Estoque'], ['produtos', 'Produtos'], ['receitas', 'Receitas'], ['insumos', 'Insumos']].map(([v, t]) => (
             <button key={v} aria-pressed={aba === v} onClick={() => setAba(v)}>{t}</button>
           ))}
         </div>
@@ -83,6 +84,9 @@ export default function Producao({ api, familia, aviso }) {
         </section>
       )}
 
+      {aba === 'estoque' && (
+        <Estoque api={api} familia={familia} dados={dados} categorias={categorias} contaNegocio={contaNegocio} aviso={aviso} recarregar={carregar} />
+      )}
       {aba === 'produtos' && (
         <Produtos dados={dados} custos={custos} abrir={(item) => setEditando({ tipo: 'produto', item })} />
       )}
