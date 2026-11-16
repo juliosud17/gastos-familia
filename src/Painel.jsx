@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dinheiro, numero, MESES, rotuloDia, primeiroNome, textoErro, efeito, alertasDeVencimento, textoPrazo, doCaderno, ehRetirada, SUPABASE_URL, SUPABASE_KEY } from './lib.js'
 import Lancar from './Lancar.jsx'
 import Folha from './Folha.jsx'
-import { IconeCasa, IconeLista, IconeMais, IconeAjustes, IconeCofre, IconeCalendario, IconeForno, Seta } from './Icones.jsx'
+import { IconeCasa, IconeLista, IconeMais, IconeAjustes, IconeCofre, IconeCalendario, IconeForno, IconeSacola, Seta } from './Icones.jsx'
 import Contas from './Contas.jsx'
 import APagar from './APagar.jsx'
 import Producao from './Producao.jsx'
+import Vendas from './Vendas.jsx'
 
 const ABAS = [
   { id: 'inicio', nome: 'Início', Icone: IconeCasa },
@@ -13,13 +14,15 @@ const ABAS = [
   { id: 'apagar', nome: 'A pagar', Icone: IconeCalendario },
   { id: 'contas', nome: 'Carteira', Icone: IconeCofre },
 ]
+// No negócio, "A pagar" fica num botão do Início (a barra de baixo só cabe quatro)
 const ABAS_NEGOCIO = [
   { id: 'inicio', nome: 'Início', Icone: IconeCasa },
+  { id: 'vendas', nome: 'Vendas', Icone: IconeSacola },
   { id: 'extrato', nome: 'Extrato', Icone: IconeLista },
   { id: 'producao', nome: 'Produção', Icone: IconeForno },
-  { id: 'apagar', nome: 'A pagar', Icone: IconeCalendario },
 ]
-const TODAS_ABAS = [...ABAS.map((a) => a.id), 'producao', 'ajustes']
+const SO_NEGOCIO = ['producao', 'vendas']
+const TODAS_ABAS = [...ABAS.map((a) => a.id), ...SO_NEGOCIO, 'ajustes']
 
 // Valor que a anotação soma no caderno (retirada: entra na casa, sai do negócio)
 function noCaderno(l, escopo, contaPorId) {
@@ -66,10 +69,10 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
     try {
       localStorage.setItem('caderneta-escopo', e)
     } catch {}
-    if (aba !== 'ajustes' && !(e === 'negocio' ? ABAS_NEGOCIO : ABAS).some((a) => a.id === aba)) setAba('inicio')
+    if (aba !== 'ajustes' && aba !== 'apagar' && !(e === 'negocio' ? ABAS_NEGOCIO : ABAS).some((a) => a.id === aba)) setAba('inicio')
   }
   useEffect(() => {
-    if (aba === 'producao' && !negocio) setAba('inicio')
+    if (SO_NEGOCIO.includes(aba) && !negocio) setAba('inicio')
     if (aba === 'contas' && negocio) setAba('inicio')
   }, [aba, negocio])
 
@@ -349,6 +352,16 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
           />
         )}
         {aba === 'producao' && negocio && <Producao api={api} familia={familia} aviso={mostrarAviso} />}
+        {aba === 'vendas' && negocio && (
+          <Vendas
+            api={api}
+            familia={familia}
+            categorias={categorias}
+            contaNegocio={contasNegocio[0] || null}
+            recarregarBase={recarregarBase}
+            aviso={mostrarAviso}
+          />
+        )}
         {aba === 'ajustes' && (
           <Ajustes api={api} nomeNegocio={nomeNegocio} trocarEscopo={trocarEscopo} membro={membro} familia={familia} membros={membros} recarregar={recarregarBase} aoSair={aoSair} aviso={mostrarAviso} />
         )}
@@ -445,6 +458,12 @@ function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaP
               <strong className={guardado < 0 ? 'tinta-vermelha' : ''}>{dinheiro(guardado)}</strong>
             </button>
           ))}
+        {negocio && (
+          <button className="linha-guardado" onClick={() => irPara('apagar')}>
+            <span>Contas a pagar do negócio</span>
+            <strong>{alertas.length ? `${alertas.length} perto` : 'ver'}</strong>
+          </button>
+        )}
         {alertas.length > 0 && (
           <button className={'alerta-vencimento' + (alertas.some((a) => a.dias < 0) ? ' atrasado' : '')} onClick={() => irPara('apagar')}>
             <span aria-hidden="true">🔔</span>

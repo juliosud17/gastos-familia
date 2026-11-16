@@ -54,6 +54,7 @@ export function textoErro(err) {
   if (/already registered/i.test(m)) return 'Este e-mail já tem conta. Use "Já tenho conta".'
   if (/Password should be/i.test(m)) return 'A senha precisa ter pelo menos 6 caracteres.'
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Sem conexão. Verifique a internet e tente de novo.'
+  if (/does not exist|Could not find the table|schema cache/i.test(m)) return 'Falta rodar a última atualização do banco (arquivo SQL) no Supabase.'
   return m
 }
 

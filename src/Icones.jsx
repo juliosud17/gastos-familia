@@ -27,3 +27,6 @@ export const IconeCalendario = () => (
 export const IconeForno = () => (
   <svg {...p}><rect x="4" y="4.5" width="16" height="15.5" rx="2" /><path d="M4 9h16" /><rect x="7.5" y="12" width="9" height="5" rx="1" /><path d="M7.5 6.8h.01M10.5 6.8h.01" /></svg>
 )
+export const IconeSacola = () => (
+  <svg {...p}><path d="M5.5 8h13l-1 12h-11z" /><path d="M9 10.5V7a3 3 0 0 1 6 0v3.5" /></svg>
+)

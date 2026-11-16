@@ -12,7 +12,8 @@ Ele está migrando a gestão da Benjoca do app "Meu Bolso" (Lovable, antunesdesp
 - Repo: juliosud17/gastos-familia. Push em `main` publica sozinho (`.github/workflows/publicar.yml`, GitHub Pages).
 - Supabase: projeto `gastos-familia-dados` (ref `ghbaeaxcvbnlctaqwiyh`). URL e chave pública ficam em `src/lib.js`.
   SQL Editor direto: https://supabase.com/dashboard/project/ghbaeaxcvbnlctaqwiyh/sql/new
-- Migrações ficam em `supabase/` e o **Julio roda à mão** no SQL Editor, em ordem: `schema.sql`, `02-contas.sql`, `03-a-pagar.sql`, `04-benjoca.sql` (todas já rodadas em 15/11/2026).
+- Migrações ficam em `supabase/` e o **Julio roda à mão** no SQL Editor, em ordem: `schema.sql`, `02-contas.sql`, `03-a-pagar.sql`, `04-benjoca.sql` (todas já rodadas em 15/11/2026),
+  `05-vendas.sql` (criado em 15/11/2026 — **confirmar se ele rodou**).
   Toda migração nova deve ser idempotente (`if not exists`, `create or replace`) e não apagar dados. Mande para ele o link do arquivo no GitHub + o link do SQL Editor.
 
 ## Stack e arquivos
@@ -24,6 +25,7 @@ React 18 + Vite 5, Supabase JS v2, sem roteador (aba no `location.hash`). Fonte 
 - `src/Painel.jsx` — casca do app: troca Casa/Benjoca, abas, Início, Extrato, Categorias, Ajustes.
 - `src/Lancar.jsx` — folha de gasto/entrada/transferência (no negócio, "Retirada").
 - `src/Contas.jsx` (Carteira), `src/APagar.jsx` (contas fixas e dívidas), `src/Producao.jsx` (insumos, receitas, produtos).
+- `src/vendas.js` (cardápio iFood, sabores, `contaNoite`, `acumulados`, `lancamentosDaNoite`, `CONFIG_PADRAO`) e `src/Vendas.jsx` (aba Vendas da noite).
 - `src/benjocaSeed.js` + `dados-benjoca/*.csv` — cadastros vindos do Meu Bolso.
 - RLS: tudo filtrado por `familia_id = minha_familia()`. Atalhos do iPhone usam RPCs `security definer` com `p_token` (= `membros.token_atalho`): `lancar_rapido`, `listar_categorias`, `listar_contas`, `avisos_vencimento`.
 
@@ -49,7 +51,16 @@ Decisões do Julio (15/11/2026):
 
 ## Próximas etapas (plano combinado)
 
-3. **Vendas e fechamento da noite** (a mais importante para ele):
+3. **Vendas e fechamento da noite** — **feita em 15/11/2026** (aba Vendas do caderno do negócio; "A pagar" do negócio virou botão no Início):
+   - Tabelas `noites` (levou/sobrou por sabor em jsonb, `taxas` extras, `pegou`, `fechada`, `resumo`), `pedidos` (iFood: cliente, `linhas` [{item, sabores}],
+     `pago_entrega`, `taxa` null = não anotada), `buscas` (dinheiro buscado na pizzaria); `familias.negocio_config` (sobrescreve `CONFIG_PADRAO`);
+     `lancamentos.noite_id` (on delete cascade).
+   - Fechar a noite cria no caderno do negócio (conta Caixa Benjoca): receita "Vendas diretas" (pizzaria), receita "Repasse iFood" (pagos na entrega)
+     e despesa "Entregas" (taxas). Reabrir apaga essas anotações. Repasse semanal do iFood continua sendo anotado à mão.
+   - Saldos acumulados: saldo dos boys (reserva − taxas) e "a buscar na pizzaria" (seu − pegou − buscas), com valores iniciais nos ajustes.
+   - **Falta da etapa 3:** importar pedidos por print/foto (precisa de uma API de visão com chave — não há backend; avaliar Edge Function do Supabase);
+     editar o cardápio/combos pelo app (hoje fica em `CARDAPIO` no código); custo/lucro por noite usando a Produção.
+   Plano original:
    - Durante a correria, anotar só o nome do cliente; no fim da noite o app pergunta quem falta completar.
    - Importar pedidos do iFood por print da tela ou foto da comanda impressa (OCR/visão). Nível 3 futuro: API do iFood (exige parceiro com CNPJ/MEI; não verificado).
    - Fechamento: levou − vendido iFood − sobrou = vendido na pizzaria; comparar com o dinheiro recebido em mão.
@@ -58,6 +69,7 @@ Decisões do Julio (15/11/2026):
 4. Painel do negócio: meta mensal, relatório, comparação entre meses (corrigindo os bugs do Meu Bolso: meta %, projeção inflada, alertas duplicados).
 5. Estoque calculado pelas vendas, lista de compras, avisos de estoque baixo.
 6. Resumo de 12 meses.
+   - Pendências do bloco 5: importar o histórico do Meu Bolso (pedir export/CSV ao Julio); dividir gás (70% Benjoca) e luz (30% Benjoca).
 7. Desligar o Lovable.
 
 **Esperando do Julio (checklist, blocos 2 a 5):**

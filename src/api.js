@@ -1,5 +1,6 @@
 import { supabase, limitesMes, hojeISO } from './lib.js'
 import seedBenjoca from './benjocaSeed.js'
+import { contaNoite, configNegocio, lancamentosDaNoite, noiteDeHoje, somarDias } from './vendas.js'
 
 // ---------- Versão real (Supabase) ----------
 
@@ -133,6 +134,51 @@ export const apiReal = {
   async novoToken() {
     return ok(await supabase.rpc('novo_token_atalho'))
   },
+  // ---------- Vendas da noite ----------
+  async noite(familiaId, data) {
+    const noite = ok(await supabase.from('noites').select('*').eq('familia_id', familiaId).eq('data', data).maybeSingle())
+    if (!noite) return { noite: null, pedidos: [] }
+    const pedidos = ok(await supabase.from('pedidos').select('*').eq('noite_id', noite.id).order('created_at'))
+    return { noite, pedidos }
+  },
+  async salvarNoite(n) {
+    const { id, ...campos } = n
+    if (id) return ok(await supabase.from('noites').update(campos).eq('id', id).select().single())
+    return ok(await supabase.from('noites').upsert(campos, { onConflict: 'familia_id,data' }).select().single())
+  },
+  async salvarPedido(p) {
+    const { id, ...campos } = p
+    if (id) return ok(await supabase.from('pedidos').update(campos).eq('id', id).select().single())
+    return ok(await supabase.from('pedidos').insert(campos).select().single())
+  },
+  async excluirPedido(id) {
+    ok(await supabase.from('pedidos').delete().eq('id', id))
+  },
+  async noites(familiaId) {
+    return ok(await supabase.from('noites').select('id, data, fechada, resumo, pegou').eq('familia_id', familiaId).order('data', { ascending: false }))
+  },
+  async buscas(familiaId) {
+    return ok(await supabase.from('buscas').select('*').eq('familia_id', familiaId).order('data', { ascending: false }))
+  },
+  async salvarBusca(b) {
+    return ok(await supabase.from('buscas').insert(b).select().single())
+  },
+  async excluirBusca(id) {
+    ok(await supabase.from('buscas').delete().eq('id', id))
+  },
+  // Fecha a noite: troca as anotações automáticas dela pelas novas e guarda o resumo
+  async fecharNoite(noite, resumo, lancs) {
+    ok(await supabase.from('lancamentos').delete().eq('noite_id', noite.id))
+    if (lancs.length) ok(await supabase.from('lancamentos').insert(lancs.map((l) => ({ ...l, noite_id: noite.id }))))
+    return ok(await supabase.from('noites').update({ fechada: true, resumo, pegou: noite.pegou || 0 }).eq('id', noite.id).select().single())
+  },
+  async reabrirNoite(id) {
+    ok(await supabase.from('lancamentos').delete().eq('noite_id', id))
+    return ok(await supabase.from('noites').update({ fechada: false, resumo: null }).eq('id', id).select().single())
+  },
+  async salvarConfigNegocio(familiaId, cfg) {
+    ok(await supabase.from('familias').update({ negocio_config: cfg }).eq('id', familiaId))
+  },
   assinar(familiaId, aoMudar) {
     const canal = supabase
       .channel('lancamentos-' + familiaId)
@@ -227,8 +273,6 @@ function semente() {
     ...l(dias, tipo, valor, null, desc, quem, conta_id, conta_destino_id), categoria_id: cat ? cN(cat) : null, escopo: 'negocio',
   })
   lancamentos.push(
-    n(0, 'receita', 472, 'Vendas diretas', 'Vendas na pizzaria', 'eu', bj),
-    n(0, 'despesa', 66, 'Entregas', 'Motoboys da noite', 'eu', bj),
     n(1, 'transferencia', 1500, null, 'Retirada da semana', 'eu', bj, nu),
     n(2, 'despesa', 312.5, 'Insumos', 'Chocolate e leite condensado', 'ela', bj),
     n(3, 'receita', 891.25, 'Repasse iFood', 'Repasse semana 1', 'eu', bj),
@@ -262,9 +306,49 @@ function semente() {
     data: mesesAtras(1).slice(0, 8) + '10', user_id: 'eu', conta_id: nu, conta_destino_id: null,
     compromisso_id: compromissos[4].id, referencia: mesesAtras(1), created_at: new Date(Date.now() - 30 * 864e5).toISOString(),
   })
+  // Vendas: três noites fechadas e a de hoje em andamento
+  const cfg = configNegocio({})
+  const noites = []
+  const pedidos = []
+  const ped = (noite_id, cliente, linhas, taxa, pago_entrega = 0) =>
+    pedidos.push({ id: uid(), familia_id: fam, noite_id, cliente, linhas, taxa, pago_entrega, created_at: new Date().toISOString() })
+  const L = (item, sabores) => ({ item, sabores })
+  const hojeN = noiteDeHoje()
+  const exemplos = [
+    { d: 3, levou: { 'pote-ninho': 10, 'pote-chocolate': 8, 'pote-maracuja': 6, 'brownie-brigadeiro': 12, 'brownie-doce-de-leite': 10, 'brownie-ninho': 10, 'brownie-ovomaltine': 4 }, pegou: 100 },
+    { d: 2, levou: { 'pote-ninho': 12, 'pote-chocolate': 8, 'pote-maracuja': 6, 'brownie-brigadeiro': 12, 'brownie-doce-de-leite': 8, 'brownie-ninho': 12, 'brownie-ovomaltine': 6 }, pegou: 50 },
+    { d: 1, levou: { 'pote-ninho': 10, 'pote-chocolate': 10, 'pote-maracuja': 4, 'brownie-brigadeiro': 10, 'brownie-doce-de-leite': 10, 'brownie-ninho': 10, 'brownie-ovomaltine': 4 }, pegou: 100 },
+  ]
+  for (const e of exemplos) {
+    const id = uid()
+    const noite = { id, familia_id: fam, data: somarDias(hojeN, -e.d), levou: e.levou, sobrou: { 'pote-maracuja': 1, 'brownie-doce-de-leite': 2 }, taxas: [6], pegou: e.pegou, fechada: true }
+    ped(id, 'Carla', [L('combo-3p1', { 'pote-ninho': 2, 'pote-chocolate': 1, 'pote-maracuja': 1 })], 6)
+    ped(id, 'Rafael', [L('combo-2p1b', { 'pote-ninho': 1, 'pote-chocolate': 1, 'brownie-ovomaltine': 1 })], 7, 41.98)
+    ped(id, 'Dona Célia', [L('combo-3b1', { 'brownie-brigadeiro': 2, 'brownie-ninho': 2 })], 4)
+    ped(id, 'Thiago', [L('pote', { 'pote-chocolate': 2 })], 8)
+    noite.resumo = contaNoite(noite, pedidos.filter((p) => p.noite_id === id), cfg)
+    noites.push(noite)
+    for (const x of lancamentosDaNoite(noite, contas[3], categorias, 'eu')) {
+      lancamentos.push({ ...x, id: uid(), conta_destino_id: null, noite_id: id, created_at: new Date(Date.now() - e.d * 864e5).toISOString() })
+    }
+  }
+  const hojeId = uid()
+  noites.push({
+    id: hojeId, familia_id: fam, data: hojeN, taxas: [], pegou: 0, fechada: false, sobrou: {},
+    levou: { 'pote-ninho': 12, 'pote-chocolate': 10, 'pote-maracuja': 6, 'brownie-brigadeiro': 12, 'brownie-doce-de-leite': 10, 'brownie-ninho': 10, 'brownie-ovomaltine': 6 },
+  })
+  ped(hojeId, 'Marcos', [L('combo-3p1', { 'pote-ninho': 2, 'pote-maracuja': 2 })], 6)
+  ped(hojeId, 'Juliana', [L('combo-2p1b', { 'pote-chocolate': 2, 'brownie-ninho': 1 })], 4, 39.99)
+  ped(hojeId, 'Pedro', [], null)
+  ped(hojeId, 'Bia', [], null)
+  const buscas = [{ id: uid(), familia_id: fam, data: somarDias(hojeN, -6), valor: 300 }]
+
   return {
+    noites,
+    pedidos,
+    buscas,
     membro: { ...eu, familia_id: fam, token_atalho: 'demo0000demo0000demo0000demo0000' },
-    familia: { id: fam, nome: 'Casa Antunes', codigo: 'K7Q2MX', negocio_nome: 'Benjoca Brownies' },
+    familia: { id: fam, nome: 'Casa Antunes', codigo: 'K7Q2MX', negocio_nome: 'Benjoca Brownies', negocio_config: {} },
     producao: { insumos, receitas, receitaItens, produtos, produtoItens },
     membros: [eu, ela],
     categorias,
@@ -281,7 +365,7 @@ export function criarApiDemo() {
   return {
     demo: true,
     async base() {
-      return { membro: db.membro, familia: db.familia, membros: db.membros, categorias: [...db.categorias], contas: [...db.contas], compromissos: [...db.compromissos] }
+      return { membro: db.membro, familia: { ...db.familia }, membros: db.membros, categorias: [...db.categorias], contas: [...db.contas], compromissos: [...db.compromissos] }
     },
     async producao() {
       const p = db.producao
@@ -399,6 +483,61 @@ export function criarApiDemo() {
     async novoToken() {
       db.membro.token_atalho = uid() + uid()
       return db.membro.token_atalho
+    },
+    async noite(_f, data) {
+      const noite = db.noites.find((n) => n.data === data) || null
+      return { noite: noite && { ...noite }, pedidos: noite ? db.pedidos.filter((p) => p.noite_id === noite.id).map((p) => ({ ...p })) : [] }
+    },
+    async salvarNoite(n) {
+      let atual = n.id ? db.noites.find((x) => x.id === n.id) : db.noites.find((x) => x.data === n.data)
+      if (atual) Object.assign(atual, n)
+      else db.noites.push((atual = { levou: {}, sobrou: {}, taxas: [], pegou: 0, fechada: false, resumo: null, ...n, id: uid() }))
+      return { ...atual }
+    },
+    async salvarPedido(p) {
+      if (p.id) {
+        const atual = db.pedidos.find((x) => x.id === p.id)
+        Object.assign(atual, p)
+        return { ...atual }
+      }
+      const novo = { linhas: [], pago_entrega: 0, taxa: null, ...p, id: uid(), created_at: new Date().toISOString() }
+      db.pedidos.push(novo)
+      return { ...novo }
+    },
+    async excluirPedido(id) {
+      db.pedidos = db.pedidos.filter((p) => p.id !== id)
+    },
+    async noites() {
+      return [...db.noites].sort((a, b) => b.data.localeCompare(a.data)).map(({ id, data, fechada, resumo, pegou }) => ({ id, data, fechada, resumo, pegou }))
+    },
+    async buscas() {
+      return [...db.buscas].sort((a, b) => b.data.localeCompare(a.data))
+    },
+    async salvarBusca(b) {
+      const nova = { ...b, id: uid(), data: b.data || hojeISO() }
+      db.buscas.push(nova)
+      return nova
+    },
+    async excluirBusca(id) {
+      db.buscas = db.buscas.filter((b) => b.id !== id)
+    },
+    async fecharNoite(noite, resumo, lancs) {
+      db.lancamentos = db.lancamentos.filter((l) => l.noite_id !== noite.id)
+      for (const l of lancs) db.lancamentos.push({ conta_destino_id: null, user_id: db.membro.user_id, ...l, noite_id: noite.id, id: uid(), created_at: new Date().toISOString() })
+      const atual = db.noites.find((x) => x.id === noite.id)
+      Object.assign(atual, { fechada: true, resumo, pegou: noite.pegou || 0 })
+      avisar()
+      return { ...atual }
+    },
+    async reabrirNoite(id) {
+      db.lancamentos = db.lancamentos.filter((l) => l.noite_id !== id)
+      const atual = db.noites.find((x) => x.id === id)
+      Object.assign(atual, { fechada: false, resumo: null })
+      avisar()
+      return { ...atual }
+    },
+    async salvarConfigNegocio(_f, cfg) {
+      db.familia.negocio_config = cfg
     },
     assinar(_f, aoMudar) {
       ouvintes.add(aoMudar)
