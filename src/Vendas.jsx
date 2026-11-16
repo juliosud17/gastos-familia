@@ -186,7 +186,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
       await api.salvarBusca({ familia_id: familia.id, valor, data: hojeISO() })
       setFolha(null)
       carregarSaldos()
-      aviso('Anotado: buscou ' + dinheiro(valor))
+      aviso('Anotado: Renan mandou ' + dinheiro(valor) + ' no Pix')
     } catch (e) {
       aviso(textoErro(e))
     }
@@ -232,7 +232,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
           <strong className={acum.saldoBoys < 0 ? 'tinta-vermelha' : 'tinta-verde'}>{sinal(acum.saldoBoys)}</strong>
         </p>
         <button className="linha-guardado" onClick={() => setFolha('busca')}>
-          <span>🍕 A buscar na pizzaria</span>
+          <span>💸 A receber do Renan (Pix)</span>
           <strong>{dinheiro(acum.aBuscar)}</strong>
         </button>
       </section>
@@ -376,7 +376,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
                 </p>
               )}
               <p className="linha-conta destaque">
-                <span>Fica para buscar na segunda</span>
+                <span>Fica a receber do Renan (Pix)</span>
                 <strong className={conta.aBuscar < 0 ? 'tinta-vermelha' : ''}>{dinheiro(conta.aBuscar)}</strong>
               </p>
             </div>
@@ -731,7 +731,7 @@ function Buscar({ aBuscar, buscas, aoSalvar, aoExcluir, aoFechar }) {
   const [valor, setValor] = useState(aBuscar > 0 ? numero(aBuscar) : '')
   const v = lerNumero(valor)
   return (
-    <Folha titulo="Buscar na pizzaria" aoFechar={aoFechar} classe="folha-negocio">
+    <Folha titulo="A receber do Renan" aoFechar={aoFechar} classe="folha-negocio">
       <form
         className="formulario"
         onSubmit={(e) => {
@@ -739,12 +739,12 @@ function Buscar({ aBuscar, buscas, aoSalvar, aoExcluir, aoFechar }) {
           if (v > 0) aoSalvar(v)
         }}
       >
-        <p className="nota">Guardado na pizzaria: <strong>{dinheiro(aBuscar)}</strong>. Anote quanto você buscou.</p>
+        <p className="nota">Falta receber do Renan: <strong>{dinheiro(aBuscar)}</strong>. Anote quanto ele mandou no Pix.</p>
         <label className="campo">
-          <span>Quanto buscou</span>
+          <span>Quanto o Renan mandou no Pix</span>
           <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />
         </label>
-        <button className="botao principal" disabled={!(v > 0)}>Anotar que busquei</button>
+        <button className="botao principal" disabled={!(v > 0)}>Anotar Pix recebido</button>
         {buscas.length > 0 && (
           <div>
             <p className="rotulo-grupo">Últimas vezes</p>
@@ -779,7 +779,7 @@ const CAMPOS_AJUSTE = [
   ['browniePizzaria', 'Brownie na pizzaria'],
   ['reservaPizzaria', 'Taxa Boy Realizado por unidade na pizzaria'],
   ['saldoBoysInicial', 'Saldo dos boys antes do app (pode ser negativo)'],
-  ['aBuscarInicial', 'Já estava guardado na pizzaria antes do app'],
+  ['aBuscarInicial', 'Já tinha a receber do Renan antes do app'],
 ]
 
 function AjustesVendas({ cfg, aoSalvar, aoFechar }) {

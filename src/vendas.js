@@ -272,11 +272,11 @@ export function textoFechamento(noite, conta, acum, cfg) {
   t.push(`  Seu: ${R(conta.seu)}`)
   t.push(`  Custo Taxa Boy: ${R(conta.taxas.total)} (${conta.taxas.entregas} ${conta.taxas.entregas === 1 ? 'entrega' : 'entregas'})`)
   t.push(`  Saldo dos boys da noite: ${sinalR(conta.saldoBoys)}`)
-  t.push(`  Pegou na hora: ${R(conta.pegou)} · ficou para buscar: ${R(conta.aBuscar)}`)
+  t.push(`  Pegou na hora: ${R(conta.pegou)} · a receber do Renan (Pix): ${R(conta.aBuscar)}`)
   if (acum) {
     t.push('')
     t.push(`🛵 Saldo dos boys acumulado: ${sinalR(acum.saldoBoys)}`)
-    t.push(`🍕 A buscar na pizzaria: ${R(acum.aBuscar)}`)
+    t.push(`💸 A receber do Renan (Pix): ${R(acum.aBuscar)}`)
   }
   return t.join('\n')
 }

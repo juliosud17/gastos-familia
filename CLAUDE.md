@@ -74,6 +74,7 @@ Decisões do Julio (15/11/2026):
      e "prévia" na noite aberta: iFood e pizzaria por sabor, sobrou, dinheiro da noite e saldos acumulados.
    - **Nomes na tela** (pedido do Julio, 16/11/2026): reserva dos boys = **"Taxa Boy Realizado"**; taxas pagas aos boys = **"Custo Taxa Boy"**.
      No código continuam `reserva` e `taxas`.
+     "A buscar na pizzaria" = na verdade **"A receber do Renan (Pix)"** (o Renan manda por Pix, ele não busca em dinheiro); no código continua `aBuscar`/`buscas`.
    Plano original:
    - Durante a correria, anotar só o nome do cliente; no fim da noite o app pergunta quem falta completar.
    - Importar pedidos do iFood por print da tela ou foto da comanda impressa (OCR/visão). Nível 3 futuro: API do iFood (exige parceiro com CNPJ/MEI; não verificado).
