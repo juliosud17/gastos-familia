@@ -84,7 +84,9 @@ Decisões do Julio (15/11/2026):
     em mão = vendas pizzaria + iFood pago na entrega; reserva = 2,52 × potes pagos iFood + 2 × unidades pizzaria;
     dele = em mão − reserva; **banco de saldo dos boys** += reserva − taxas pagas (acumula, um dia compensa o outro, pode ficar negativo);
     da parte dele, pega R$ 50 ou 100 em dinheiro na hora e o resto fica guardado para buscar na **segunda seguinte** (saldo "a buscar").
-- Bloco 5: decisões — histórico do Meu Bolso entra ou não, meta (R$ 10.000/mês?), divisão de luz/gás entre casa e negócio (%).
+  - Ele **confirmou** essa conta com um exemplo (15/11/2026).
+- Bloco 5: decisões — **recebido em 15/11/2026**: histórico do Meu Bolso **entra** (precisa exportar de lá);
+  meta = **R$ 10.000 de lucro por mês**; hoje não divide contas, mas aceita dividir **gás 70% Benjoca** e **luz 30% Benjoca**.
 - Ele avisou que os preços do iFood são um pouco maiores que os da pizzaria, para cobrir a taxa.
 
 ## Como trabalhar
