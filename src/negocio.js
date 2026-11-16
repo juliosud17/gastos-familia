@@ -152,3 +152,100 @@ export function primeiroMesHistorico(historico = {}) {
   const [a, mm] = k.split('-').map(Number)
   return { ano: a, mes: mm - 1 }
 }
+
+// ---------- Detalhamento (dia, semana ou mês), como no Meu Bolso ----------
+// Vendas vêm das noites fechadas (pedidos do iFood + pizzaria); custo de produção vem da Produção (custo de hoje de cada sabor).
+// Despesas operacionais: gastos do negócio no período, menos Insumos (já entram no custo de produção) e menos as taxas
+// que o fechamento da noite anotou (entram como "taxas dos boys").
+export function detalhamento({ noites, lancamentos, custoSabor, catPorId, cfg, ini, fim, rateioMes = null }) {
+  const doPeriodo = noites.filter((n) => n.fechada && n.resumo && n.data >= ini && n.data <= fim)
+  const custoDe = (unidades) => {
+    let c = 0
+    const sem = new Set()
+    for (const [s, q] of Object.entries(unidades || {})) {
+      if (custoSabor[s] === undefined) sem.add(s)
+      else c += custoSabor[s] * q
+    }
+    return [c, sem]
+  }
+  let ifoodBruto = 0, comissao = 0, pagoEntrega = 0, custoIfood = 0, diretas = 0, custoDiretas = 0, taxasBoys = 0, pedidos = 0
+  let potes = 0, brownies = 0
+  const semCusto = new Set()
+  for (const n of doPeriodo) {
+    const r = n.resumo
+    ifoodBruto += r.ifood.valor
+    comissao += r.ifood.comissao
+    pagoEntrega += r.ifood.pagoEntrega
+    pedidos += r.ifood.pedidos
+    diretas += r.pizzaria.valor
+    taxasBoys += r.taxas.total
+    const [ci, si] = custoDe(r.ifood.unidades)
+    const [cd, sd] = custoDe(r.pizzaria.unidades)
+    custoIfood += ci
+    custoDiretas += cd
+    si.forEach((s) => semCusto.add(s))
+    sd.forEach((s) => semCusto.add(s))
+    for (const un of [r.ifood.unidades, r.pizzaria.unidades])
+      for (const [s, q] of Object.entries(un || {})) s.startsWith('pote') ? (potes += q) : (brownies += q)
+  }
+  const ifoodLiquido = ifoodBruto - comissao
+  const lucroOperacional = ifoodLiquido - custoIfood + diretas - custoDiretas
+
+  const despesas = {}
+  let despesasTotal = 0
+  const noPeriodo = (lancamentos || []).filter((l) => l.data >= ini && l.data <= fim)
+  for (const l of noPeriodo) {
+    if ((l.escopo || 'casa') !== 'negocio' || l.tipo !== 'despesa' || l.noite_id) continue
+    if ((catPorId[l.categoria_id]?.nome || '').toLowerCase() === 'insumos') continue
+    despesas[l.categoria_id || ''] = (despesas[l.categoria_id || ''] || 0) + +l.valor
+    despesasTotal += +l.valor
+  }
+  // Dia e semana: a luz e o gás do mês divididos pelos dias (a conta é paga num dia só)
+  let rateio = rateioCasa(noPeriodo, catPorId, cfg)
+  if (rateioMes) {
+    const dias = Math.round((new Date(fim + 'T12:00:00') - new Date(ini + 'T12:00:00')) / 864e5) + 1
+    const f = Math.min(1, dias / rateioMes.diasNoMes)
+    const grupos = rateioMes.grupos.map((g) => ({ ...g, valor: r2(g.valor * f) }))
+    rateio = { grupos, total: r2(rateioMes.total * f), proporcional: dias }
+  }
+  const lucroLiquido = lucroOperacional - taxasBoys - despesasTotal - rateio.total
+  return {
+    noites: doPeriodo.length,
+    pedidos,
+    potes,
+    brownies,
+    ifoodBruto: r2(ifoodBruto),
+    comissao: r2(comissao),
+    pagoEntrega: r2(pagoEntrega),
+    ifoodLiquido: r2(ifoodLiquido),
+    custoIfood: r2(custoIfood),
+    diretas: r2(diretas),
+    custoDiretas: r2(custoDiretas),
+    faturamento: r2(ifoodBruto + diretas),
+    lucroOperacional: r2(lucroOperacional),
+    taxasBoys: r2(taxasBoys),
+    despesas,
+    despesasTotal: r2(despesasTotal),
+    rateio,
+    lucroLiquido: r2(lucroLiquido),
+    semCusto: [...semCusto],
+  }
+}
+
+// Semanas (segunda a domingo) que tocam o mês
+export function semanasDoMes(ano, mes) {
+  const p = (x) => String(x).padStart(2, '0')
+  const iso = (d) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  const d = new Date(ano, mes, 1)
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)) // volta até a segunda
+  const r = []
+  while (d.getMonth() === mes || d < new Date(ano, mes, 1)) {
+    const ini = new Date(d)
+    const fim = new Date(d)
+    fim.setDate(fim.getDate() + 6)
+    r.push({ ini: iso(ini), fim: iso(fim) })
+    d.setDate(d.getDate() + 7)
+    if (d > new Date(ano, mes + 1, 0)) break
+  }
+  return r
+}

@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { dinheiro, numero, textoErro, MESES, limitesMes, lerNumero, dataCurta } from './lib.js'
+import { dinheiro, numero, textoErro, MESES, limitesMes, lerNumero, dataCurta, custosProducao, rotuloDia, hojeISO } from './lib.js'
+import { produtoDoSabor } from './estoque.js'
+import { SABOR } from './vendas.js'
 import Folha from './Folha.jsx'
-import { numerosNegocio, situacaoMeta, projecao, ultimosMeses, separarPorMes, vinteOitoDias, lerHistorico, comHistorico, primeiroMesHistorico } from './negocio.js'
+import { rateioCasa, numerosNegocio, situacaoMeta, projecao, ultimosMeses, separarPorMes, vinteOitoDias, lerHistorico, comHistorico, primeiroMesHistorico, detalhamento, semanasDoMes } from './negocio.js'
 
 const MESES_CURTOS = MESES.map((m) => m.slice(0, 3))
 
 export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaPorId, lancamentosMes, recarregarBase, aviso }) {
   const [faixa, setFaixa] = useState(null) // lançamentos dos últimos 6 meses
   const [noites, setNoites] = useState([])
+  const [producao, setProducao] = useState(null)
   const [ajustes, setAjustes] = useState(false)
   const [verRateio, setVerRateio] = useState(false)
   const [escolhaMeses, setEscolhaMeses] = useState(6) // 6 | 12 | 'tudo'
@@ -30,11 +33,12 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
     const fim = limitesMes(periodo.ano, periodo.mes)[1]
     const [ini28, fim28] = vinteOitoDias()
     const ini = ini28 < ini6 ? ini28 : ini6
-    Promise.all([api.intervalo(familia.id, ini, fim28 > fim ? fim28 : fim), api.noites(familia.id)])
-      .then(([l, n]) => {
+    Promise.all([api.intervalo(familia.id, ini, fim28 > fim ? fim28 : fim), api.noites(familia.id), api.producao(familia.id)])
+      .then(([l, n, pr]) => {
         if (!vivo) return
         setFaixa(l)
         setNoites(n)
+        setProducao(pr)
       })
       .catch((e) => aviso(textoErro(e)))
     return () => {
@@ -83,6 +87,12 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
         </p>
       )}
 
+      {faixa && producao && (
+        <Detalhamento noites={noites} lancamentos={faixa} producao={producao} catPorId={catPorId} cfg={cfg} periodo={periodo} />
+      )}
+
+      <h2 className="subtitulo-relatorio">Caixa do mês</h2>
+      <p className="nota">Dinheiro que entrou e saiu no caderno da Benjoca (inclui repasses do iFood e compras de insumos).</p>
       <section className="pagina-pautada fechamento">
         <p className="rotulo-grupo">Vendas</p>
         {listaCat(n.porCat.receita).map(([id, v]) => (
@@ -235,6 +245,107 @@ function ResumoPeriodo({ meses, meta }) {
       {melhor && <p className="linha-conta"><span>Melhor mês</span><strong>{MESES[melhor.mes]} · {dinheiro(melhor.lucro)}</strong></p>}
       {meta > 0 && comDados.length > 0 && <p className="linha-conta"><span>Bateu a meta</span><strong>{bateu} de {comDados.length} {comDados.length === 1 ? 'mês' : 'meses'}</strong></p>}
     </div>
+  )
+}
+
+// ---------------- Detalhamento: dia, semana ou mês ----------------
+
+function Detalhamento({ noites, lancamentos, producao, catPorId, cfg, periodo }) {
+  const [modo, setModo] = useState('mes')
+  const [ini, fim] = limitesMes(periodo.ano, periodo.mes)
+  const noitesMes = noites.filter((n) => n.fechada && n.resumo && n.data >= ini && n.data <= fim).sort((a, b) => b.data.localeCompare(a.data))
+  const semanas = semanasDoMes(periodo.ano, periodo.mes)
+  const hoje = hojeISO()
+  const [dia, setDia] = useState(null)
+  const [semana, setSemana] = useState(null)
+  const diaEscolhido = dia && noitesMes.some((n) => n.data === dia) ? dia : noitesMes[0]?.data
+  const semanaPadrao = semanas.find((w) => w.ini <= hoje && hoje <= w.fim) || semanas[semanas.length - 1]
+  const semanaEscolhida = semanas.find((w) => w.ini === semana) || semanaPadrao
+
+  const custoSabor = useMemo(() => {
+    const custos = custosProducao(producao)
+    const mapa = produtoDoSabor(producao.produtos || [])
+    return Object.fromEntries(Object.entries(mapa).map(([s, p]) => [s, custos.produto[p] || 0]))
+  }, [producao])
+
+  const faixa = modo === 'dia' ? [diaEscolhido, diaEscolhido] : modo === 'semana' ? [semanaEscolhida.ini, semanaEscolhida.fim] : [ini, fim]
+  const rateioMes = useMemo(() => {
+    const r = rateioCasa(lancamentos.filter((l) => l.data >= ini && l.data <= fim), catPorId, cfg)
+    return { ...r, diasNoMes: +fim.slice(8, 10) }
+  }, [lancamentos, ini, fim, catPorId, cfg])
+  const d = useMemo(
+    () =>
+      faixa[0]
+        ? detalhamento({ noites, lancamentos, custoSabor, catPorId, cfg, ini: faixa[0], fim: faixa[1], rateioMes: modo === 'mes' ? null : rateioMes })
+        : null,
+    [noites, lancamentos, custoSabor, catPorId, cfg, faixa[0], faixa[1], modo, rateioMes] // eslint-disable-line
+  )
+  const dm = (iso) => dataCurta(iso).slice(0, 5)
+  const nomeCat = (id) => (catPorId[id] ? `${catPorId[id].emoji} ${catPorId[id].nome}` : 'Sem categoria')
+  const L = ({ t, v, neg, sub, forte }) => (
+    <p className={'linha-conta' + (forte ? ' soma' : '')}>
+      <span>{t}{sub && <small>{sub}</small>}</span>
+      <strong className={neg && v ? 'tinta-vermelha' : ''}>{neg && v ? '− ' : ''}{dinheiro(v)}</strong>
+    </p>
+  )
+
+  return (
+    <section className="detalhamento">
+      <div className="cabeca-bloco">
+        <h2>Detalhamento</h2>
+        <div className="segmento segmento-pequeno">
+          {[['dia', 'Dia'], ['semana', 'Semana'], ['mes', 'Mês']].map(([m, t]) => (
+            <button key={m} aria-pressed={modo === m} onClick={() => setModo(m)}>{t}</button>
+          ))}
+        </div>
+      </div>
+      {modo === 'dia' && noitesMes.length > 0 && (
+        <select className="escolha-periodo" value={diaEscolhido} onChange={(e) => setDia(e.target.value)} aria-label="Noite">
+          {noitesMes.map((n) => <option key={n.data} value={n.data}>{rotuloDia(n.data)} ({dm(n.data)})</option>)}
+        </select>
+      )}
+      {modo === 'semana' && (
+        <select className="escolha-periodo" value={semanaEscolhida.ini} onChange={(e) => setSemana(e.target.value)} aria-label="Semana">
+          {semanas.map((w) => <option key={w.ini} value={w.ini}>Semana de {dm(w.ini)} a {dm(w.fim)}</option>)}
+        </select>
+      )}
+
+      {!d || (d.noites === 0 && modo !== 'mes') ? (
+        <p className="nota">{modo === 'dia' ? 'Nenhuma noite fechada neste mês.' : 'Nenhuma noite fechada nesta semana.'}</p>
+      ) : (
+        <>
+          <div className="cartoes-detalhe">
+            <div><span>Faturamento</span><strong>{dinheiro(d.faturamento)}</strong><small>iFood + vendas diretas</small></div>
+            <div className="destaque-detalhe"><span>Lucro líquido</span><strong className={d.lucroLiquido < 0 ? 'tinta-vermelha' : ''}>{dinheiro(d.lucroLiquido)}</strong><small>já sem taxas, custos e despesas</small></div>
+          </div>
+          <p className="nota">
+            {d.noites} {d.noites === 1 ? 'noite fechada' : 'noites fechadas'} · {d.potes} potes e {d.brownies} brownies · {d.pedidos} pedidos no iFood
+          </p>
+          <div className="pagina-pautada fechamento">
+            <L t="iFood bruto" v={d.ifoodBruto} sub={d.pagoEntrega ? `${dinheiro(d.pagoEntrega)} pagos na entrega` : null} />
+            <L t={`Taxas do iFood (${numero(cfg.comissao)}%)`} v={d.comissao} neg />
+            <L t="iFood líquido" v={d.ifoodLiquido} forte />
+            <L t="Custo de produção (iFood)" v={d.custoIfood} neg />
+            <L t="Vendas diretas (pizzaria)" v={d.diretas} />
+            <L t="Custo de produção (diretas)" v={d.custoDiretas} neg />
+            <L t="Lucro operacional" v={d.lucroOperacional} forte />
+            <L t="Taxas dos boys" v={d.taxasBoys} neg />
+            <L t="Despesas operacionais" v={d.despesasTotal} neg sub={Object.keys(d.despesas).length ? Object.entries(d.despesas).map(([id, v]) => `${nomeCat(id)} ${dinheiro(v)}`).join(' · ') : 'sem insumos (já estão no custo)'} />
+            {d.rateio.total > 0 && <L t="Luz e gás da casa" v={d.rateio.total} neg sub={d.rateio.grupos.map((g) => `${g.nome} ${g.pct}%`).join(' + ') + (d.rateio.proporcional ? `, proporcional a ${d.rateio.proporcional} ${d.rateio.proporcional === 1 ? 'dia' : 'dias'} do mês` : '')} />}
+            <p className="linha-conta destaque">
+              <span>Lucro líquido</span>
+              <strong className={d.lucroLiquido < 0 ? 'tinta-vermelha' : ''}>{dinheiro(d.lucroLiquido)}</strong>
+            </p>
+          </div>
+          {d.semCusto.length > 0 && (
+            <p className="nota">Sem custo cadastrado (contou como R$ 0): {d.semCusto.map((s) => SABOR[s]?.nome || s).join(', ')}.</p>
+          )}
+          <p className="nota">
+            Conta pelas vendas anotadas na aba Vendas e pelo custo de hoje de cada produto. O “Caixa do mês” abaixo conta o dinheiro de verdade (repasses, compras), por isso os dois podem ser diferentes.
+          </p>
+        </>
+      )}
+    </section>
   )
 }
 

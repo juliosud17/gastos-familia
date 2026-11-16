@@ -88,6 +88,11 @@ Decisões do Julio (15/11/2026):
      receitas só de jun–out/2026). Ele cola essa tabela no Relatório (📥) e ela vai para `negocio_config.historico` {"AAAA-MM": {receitas, lucro}}.
      **Não pôr esses números no código: o repositório é público.** Meses sem anotação do negócio na Caderneta usam o lucro do histórico
      (`comHistorico`); seletor 6/12/Tudo. Divisão gás/luz: feita na etapa 4.
+   - **Detalhamento** (15/11/2026, pedido do Julio, igual ao "Detalhamento Financeiro do Mês" do Meu Bolso) no topo do Relatório, com Dia/Semana(seg–dom)/Mês:
+     iFood bruto − taxas iFood = líquido − custo de produção (iFood) + vendas diretas − custo (diretas) = lucro operacional − taxas dos boys
+     − despesas operacionais (negócio, sem Insumos e sem as anotações da noite) − luz/gás (no dia/semana, proporcional aos dias do mês) = lucro líquido.
+     Vem das noites fechadas (`resumo`) + custo atual de cada sabor (`custosProducao` + `produtoDoSabor`). Abaixo fica o "Caixa do mês" (dinheiro real).
+     A meta usa o caixa; perguntar ao Julio se prefere a meta pelo lucro do detalhamento (o Meu Bolso usava esse).
 7. Desligar o Lovable (depois de 1–2 semanas usando a aba Vendas e de recontar o estoque).
 
 **Checkup de 15/11/2026:** todas as telas testadas na demo (casa e negócio), API real e demo com as mesmas funções.

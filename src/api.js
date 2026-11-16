@@ -71,7 +71,7 @@ export const apiReal = {
       const pagina = ok(
         await supabase
           .from('lancamentos')
-          .select('id, tipo, valor, data, escopo, categoria_id, conta_id, conta_destino_id, descricao')
+          .select('id, tipo, valor, data, escopo, categoria_id, conta_id, conta_destino_id, descricao, origem, noite_id')
           .eq('familia_id', familiaId)
           .gte('data', ini)
           .lte('data', fim)
