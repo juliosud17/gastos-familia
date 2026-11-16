@@ -3,7 +3,7 @@ import { dinheiro, numero, textoErro, MESES, limitesMes, lerNumero, dataCurta, c
 import { produtoDoSabor } from './estoque.js'
 import { SABOR } from './vendas.js'
 import Folha from './Folha.jsx'
-import { rateioCasa, numerosNegocio, situacaoMeta, projecao, ultimosMeses, separarPorMes, vinteOitoDias, lerHistorico, comHistorico, primeiroMesHistorico, detalhamento, semanasDoMes, custoPorSabor, projecaoVendas, diasDeNoites } from './negocio.js'
+import { rateioCasa, numerosNegocio, situacaoMeta, projecao, ultimosMeses, separarPorMes, vinteOitoDias, lerHistorico, comHistorico, primeiroMesHistorico, detalhamento, semanasDoMes, custoPorSabor, projecaoVendas, diasDeNoites, lerApurados } from './negocio.js'
 
 const MESES_CURTOS = MESES.map((m) => m.slice(0, 3))
 
@@ -15,6 +15,7 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
   const [verRateio, setVerRateio] = useState(false)
   const [escolhaMeses, setEscolhaMeses] = useState(6) // 6 | 12 | 'tudo'
   const [importar, setImportar] = useState(false)
+  const [apurar, setApurar] = useState(false)
   const historico = cfg.historico || {}
   const primeiro = primeiroMesHistorico(historico)
   const nMeses =
@@ -69,7 +70,7 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
     if (!faixa || !custoSabor) return null
     const porMes = separarPorMes(faixa, meses).map((m) => {
       const v = detMes(m.ano, m.mes, m.lancamentos)
-      if (v.noites > 0) {
+      if (v.noites > 0 || v.apurados.length > 0) {
         return { ...m, lucro: v.lucroLiquido, vendeu: v.faturamento, gastou: v.faturamento - v.lucroLiquido, rateio: { total: 0, grupos: [] }, porVendas: true }
       }
       return { ...m, ...numerosNegocio(m.lancamentos, contaPorId, catPorId, cfg) }
@@ -217,12 +218,26 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
         )}
       </section>
 
+      <button className="link ajustes-vendas" onClick={() => setApurar(true)}>
+        ➕ Lucros já apurados fora do app{(cfg.apurados || []).length ? ` (${cfg.apurados.length})` : ''}
+      </button>
       <button className="link ajustes-vendas" onClick={() => setImportar(true)}>
         📥 {Object.keys(historico).length ? `Histórico do Meu Bolso (${Object.keys(historico).length} meses)` : 'Trazer o histórico do Meu Bolso'}
       </button>
       <button className="link ajustes-vendas" onClick={() => setAjustes(true)}>⚙️ Meta e divisão da luz e do gás</button>
 
       {ajustes && <AjustesMeta cfg={cfg} aoSalvar={salvarAjustes} aoFechar={() => setAjustes(false)} />}
+      {apurar && (
+        <Apurados
+          apurados={cfg.apurados || []}
+          periodo={periodo}
+          aoSalvar={async (lista, msg) => {
+            await salvarAjustes({ apurados: lista }, msg)
+            if (msg === 'Lucros guardados') setApurar(false)
+          }}
+          aoFechar={() => setApurar(false)}
+        />
+      )}
       {importar && (
         <ImportarHistorico
           historico={historico}
@@ -325,7 +340,7 @@ function Detalhamento({ noites, lancamentos, producao, catPorId, cfg, periodo })
         </select>
       )}
 
-      {!d || (d.noites === 0 && modo !== 'mes') ? (
+      {!d || (d.noites === 0 && !d.apurados.length && modo !== 'mes') ? (
         <p className="nota">{modo === 'dia' ? 'Nenhuma noite fechada neste mês.' : 'Nenhuma noite fechada nesta semana.'}</p>
       ) : (
         <>
@@ -335,6 +350,7 @@ function Detalhamento({ noites, lancamentos, producao, catPorId, cfg, periodo })
           </div>
           <p className="nota">
             {d.noites} {d.noites === 1 ? 'noite fechada' : 'noites fechadas'} · {d.potes} potes e {d.brownies} brownies · {d.pedidos} pedidos no iFood
+            {d.apurados.length > 0 && ` · mais ${d.apuradoItens} itens apurados fora do app`}
           </p>
           <div className="pagina-pautada fechamento">
             <L t="iFood bruto" v={d.ifoodBruto} sub={d.pagoEntrega ? `${dinheiro(d.pagoEntrega)} pagos na entrega` : null} />
@@ -346,6 +362,12 @@ function Detalhamento({ noites, lancamentos, producao, catPorId, cfg, periodo })
             <L t="Lucro operacional" v={d.lucroOperacional} forte />
             <L t="Taxas dos boys" v={d.taxasBoys} neg />
             <L t="Despesas operacionais" v={d.despesasTotal} neg sub={Object.keys(d.despesas).length ? Object.entries(d.despesas).map(([id, v]) => `${nomeCat(id)} ${dinheiro(v)}`).join(' · ') : 'sem insumos (já estão no custo)'} />
+            {d.apurados.length > 0 && (
+              <>
+                <L t="Lucro já apurado: iFood" v={d.apuradoIfood} sub={d.apurados.filter((a) => a.canal === 'ifood').map((a) => `semana ${a.semana}: ${dinheiro(a.lucro)}`).join(' · ') || null} />
+                <L t="Lucro já apurado: pizzaria" v={d.apuradoPizzaria} sub={d.apurados.filter((a) => a.canal !== 'ifood').map((a) => `semana ${a.semana}: ${dinheiro(a.lucro)}`).join(' · ') || null} />
+              </>
+            )}
             {d.rateio.total > 0 && <L t="Luz e gás da casa" v={d.rateio.total} neg sub={d.rateio.grupos.map((g) => `${g.nome} ${g.pct}%`).join(' + ') + (d.rateio.proporcional ? `, proporcional a ${d.rateio.proporcional} ${d.rateio.proporcional === 1 ? 'dia' : 'dias'} do mês` : '')} />}
             <p className="linha-conta destaque">
               <span>Lucro líquido</span>
@@ -407,6 +429,64 @@ function Comparacao({ meses, meta }) {
         )
       })}
     </ul>
+  )
+}
+
+function Apurados({ apurados, periodo, aoSalvar, aoFechar }) {
+  const [texto, setTexto] = useState('')
+  const lido = useMemo(() => lerApurados(texto, periodo.ano, periodo.mes), [texto, periodo.ano, periodo.mes])
+  const total = lido.reduce((s, a) => s + a.lucro, 0)
+  const dm = (iso) => dataCurta(iso).slice(0, 5)
+  const nomeCanal = (c) => (c === 'ifood' ? 'iFood' : 'Pizzaria')
+  return (
+    <Folha titulo="Lucros já apurados" aoFechar={aoFechar} classe="folha-negocio">
+      <form
+        className="formulario"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!lido.length) return
+          const novos = new Map(apurados.map((a) => [a.id, a]))
+          for (const a of lido) novos.set(a.id, a) // a mesma semana colada de novo substitui, não soma duas vezes
+          aoSalvar([...novos.values()].sort((a, b) => a.ini.localeCompare(b.ini) || a.canal.localeCompare(b.canal)), 'Lucros guardados')
+        }}
+      >
+        <p className="nota">
+          Para semanas que não foram fechadas na aba Vendas (por exemplo, o começo de {MESES[periodo.mes]} no Meu Bolso). Cole o texto com “iFood” / “Pizzaria”,
+          “Semana 1”, os itens e o “Lucro: R$”. Entra no lucro das vendas e na meta de {MESES[periodo.mes]}. A semana 1 vai do dia 1 ao 7, a 2 do 8 ao 14, e assim por diante.
+        </p>
+        <label className="campo">
+          <span>Cole o texto ({MESES[periodo.mes]} de {periodo.ano})</span>
+          <textarea rows={8} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={'iFood\nSemana 1\n92 itens lançados\nLucro: R$ 700,28\n\nPizzaria\nSemana 1\n…'} />
+        </label>
+        {lido.length > 0 && (
+          <div className="aviso ok">
+            Li {lido.length} {lido.length === 1 ? 'semana' : 'semanas'}, total {dinheiro(total)}:
+            <ul className="lista-simples">
+              {lido.map((a) => (
+                <li key={a.id}>{nomeCanal(a.canal)}, semana {a.semana} ({dm(a.ini)} a {dm(a.fim)}): {dinheiro(a.lucro)}{a.itens ? ` · ${a.itens} itens` : ''}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <button className="botao principal" disabled={!lido.length}>Guardar</button>
+        {apurados.length > 0 && (
+          <div>
+            <p className="rotulo-grupo">Já guardados</p>
+            <ul className="lista-simples">
+              {apurados.map((a) => (
+                <li key={a.id} className="linha-conta">
+                  <span>{nomeCanal(a.canal)} · {dm(a.ini)} a {dm(a.fim)}{a.itens ? <small>{a.itens} itens</small> : null}</span>
+                  <span>
+                    <strong>{dinheiro(a.lucro)}</strong>{' '}
+                    <button type="button" className="tirar" aria-label="Excluir" onClick={() => aoSalvar(apurados.filter((x) => x.id !== a.id), 'Excluído')}>×</button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </form>
+    </Folha>
   )
 }
 

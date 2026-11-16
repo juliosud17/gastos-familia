@@ -212,7 +212,12 @@ export function detalhamento({ noites, lancamentos, custoSabor, catPorId, cfg, i
     const grupos = rateioMes.grupos.map((g) => ({ ...g, valor: r2(g.valor * f) }))
     rateio = { grupos, total: r2(rateioMes.total * f), proporcional: dias }
   }
-  const lucroLiquido = lucroOperacional - taxasBoys - despesasTotal - rateio.total
+  // Lucros apurados fora do app (ex.: semanas de novembro no Meu Bolso), contados pela data final de cada período
+  const apurados = (cfg.apurados || []).filter((a) => a.fim >= ini && a.fim <= fim)
+  const apuradoIfood = r2(apurados.filter((a) => a.canal === 'ifood').reduce((s, a) => s + +a.lucro, 0))
+  const apuradoPizzaria = r2(apurados.filter((a) => a.canal !== 'ifood').reduce((s, a) => s + +a.lucro, 0))
+  const apuradoItens = apurados.reduce((s, a) => s + (+a.itens || 0), 0)
+  const lucroLiquido = lucroOperacional - taxasBoys - despesasTotal - rateio.total + apuradoIfood + apuradoPizzaria
   return {
     noites: doPeriodo.length,
     pedidos,
@@ -233,6 +238,10 @@ export function detalhamento({ noites, lancamentos, custoSabor, catPorId, cfg, i
     rateio,
     lucroLiquido: r2(lucroLiquido),
     semCusto: [...semCusto],
+    apurados,
+    apuradoIfood,
+    apuradoPizzaria,
+    apuradoItens,
   }
 }
 
@@ -294,4 +303,38 @@ export function diasDeNoites(noites) {
   if (!datas.length) return { ini, fim: hoje, dias: 0 }
   const dias = Math.min(28, Math.round((new Date(hoje + 'T12:00:00') - new Date(datas[0] + 'T12:00:00')) / 864e5) + 1)
   return { ini, fim: hoje, dias }
+}
+
+// Texto do Meu Bolso com o lucro por semana: "Ifood / Semana 1 / 92 itens lançados / Lucro: R$ 700,28 / Pizzaria / Semana 1 ..."
+// Semana N do mês = dias (N−1)×7+1 até N×7 (a última vai até o fim do mês).
+export function lerApurados(texto, ano, mes) {
+  const p = (x) => String(x).padStart(2, '0')
+  const ultimo = new Date(ano, mes + 1, 0).getDate()
+  const r = []
+  let canal = null
+  let semana = null
+  let itens = null
+  for (const bruta of String(texto || '').split(/\n/)) {
+    const linha = bruta.trim().toLowerCase()
+    if (!linha) continue
+    if (/^i ?food\b/.test(linha)) canal = 'ifood'
+    else if (/^pizzaria\b|^vendas? diretas?\b/.test(linha)) canal = 'pizzaria'
+    const sem = linha.match(/semana\s*(\d+)/)
+    if (sem) {
+      semana = +sem[1]
+      itens = null
+    }
+    const it = linha.match(/(\d+)\s*ite/)
+    if (it) itens = +it[1]
+    const lu = linha.match(/lucro[^\d-]*(-?\s*[\d.]+,\d{2})/)
+    if (lu && canal && semana) {
+      const lucro = Number(lu[1].replace(/[\s.]/g, '').replace(',', '.'))
+      const d1 = Math.min((semana - 1) * 7 + 1, ultimo)
+      const d2 = semana >= 5 ? ultimo : Math.min(semana * 7, ultimo)
+      const ini = `${ano}-${p(mes + 1)}-${p(d1)}`
+      const fim = `${ano}-${p(mes + 1)}-${p(d2)}`
+      r.push({ id: `${canal}-${ini}`, canal, semana, itens, lucro, ini, fim })
+    }
+  }
+  return r
 }

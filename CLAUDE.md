@@ -103,6 +103,10 @@ Decisões do Julio (15/11/2026):
      - **Mudar o custo dos insumos não pode alterar o que já foi computado:** ao fechar a noite, `resumo.custos` guarda o custo de cada sabor;
        o detalhamento usa `resumo.custos` (só cai no custo atual se não tiver). Noites fechadas antes disso recebem o custo atual uma vez
        (Painel → `carregarVendasNeg`). Caixa e histórico já eram fixos. Estoque usa as receitas atuais (não é dinheiro).
+   - **Lucros já apurados fora do app** (16/11/2026): o Julio tinha no Meu Bolso o lucro por semana de novembro (iFood e pizzaria, semanas 1 e 2).
+     Ele cola o texto em Relatório → "➕ Lucros já apurados" (`lerApurados`; semana N = dias (N−1)·7+1 a N·7) e vai para
+     `negocio_config.apurados` [{id, canal, semana, itens, lucro, ini, fim}] (mesma semana colada de novo substitui). O detalhamento soma pela
+     data `fim` ao lucro líquido (linhas "Lucro já apurado"), então entra na meta, Início e comparação. Não pôr os números no código.
 7. Desligar o Lovable (depois de 1–2 semanas usando a aba Vendas e de recontar o estoque).
 
 **Checkup de 15/11/2026:** todas as telas testadas na demo (casa e negócio), API real e demo com as mesmas funções.
