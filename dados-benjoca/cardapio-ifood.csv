@@ -1,0 +1,15 @@
+grupo,nome,preco_cheio,preco_ifood,ativo,potes,brownies,observacao
+combo,Compre 2 Potes e ganhe + 1 Brownie Recheado Grátis!,68.00,39.99,sim,2,1,
+combo,Compre 3 Brownies Recheados e ganhe 1 Grátis!,54.00,36.00,sim,0,4,
+combo,Compre 3 Brownies No Pote e ganhe 1 Grátis!,99.99,59.99,sim,4,0,
+combo,Compre 5 Brownies Recheados e ganhe 2 Grátis!,90.00,60.00,nao,0,7,pausado
+combo,Compre 5 Brownie No Pote e ganhe + 2 Grátis!,140.00,85.00,nao,7,0,pausado
+combo,Compre 5 Brownies no Pote e ganhe 3 Brownie Recheado Grátis!,140.00,85.00,nao,5,3,pausado
+pote,Brownie no Pote - Creme de Ninho c/ Nutella legítima,28.00,19.99,sim,1,0,
+pote,Brownie no Pote - Mousse de Maracujá,28.00,19.99,sim,1,0,
+pote,Brownie no Pote - Creme de Chocolate,28.00,19.99,sim,1,0,
+pote,Brownie no Pote - Mousse de Limão,28.00,19.99,nao,1,0,pausado
+brownie,Brownie Ninho Com Nutella de Verdade - 105g/ 6x6 cm,18.00,12.00,sim,0,1,
+brownie,Brownie Doce De Leite - 105g/ 6x6 cm,18.00,12.00,sim,0,1,
+brownie,Brownie Brigadeiro Gourmet - 105g/ 6x6 cm,18.00,12.00,sim,0,1,
+brownie,Brownie de Ovomaltine - *Novidade*,,13.99,sim,0,1,sem preço riscado

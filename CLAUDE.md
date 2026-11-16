@@ -61,7 +61,9 @@ Decisões do Julio (15/11/2026):
 7. Desligar o Lovable.
 
 **Esperando do Julio (checklist, blocos 2 a 5):**
-- Bloco 2: cardápio do iFood e combos (preços no iFood).
+- Bloco 2: cardápio do iFood e combos — **recebido em 15/11/2026** (prints), salvo em `dados-benjoca/cardapio-ifood.csv`
+  (colunas `potes`/`brownies` = quantas unidades o combo gasta, já contando as grátis). Falta confirmar: como o cliente
+  escolhe os sabores nos combos (complementos) e se há itens abaixo do Ovomaltine.
 - Bloco 3: dinheiro do iFood (taxas, %, dia do repasse — cai toda quarta —, incentivos).
 - Bloco 4: noite na pizzaria (preços lá, de que dependem as taxas 4/6/7/8, o que significam "107" e "21" no papel, se ele paga algo à pizzaria do irmão).
 - Bloco 5: decisões — histórico do Meu Bolso entra ou não, meta (R$ 10.000/mês?), divisão de luz/gás entre casa e negócio (%).
