@@ -415,6 +415,7 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
             categorias={categorias}
             contaNegocio={contasNegocio[0] || null}
             contaDinheiro={contasCasa.find((c) => c.tipo === 'dinheiro') || null}
+            contasCasa={contasCasa}
             recarregarBase={recarregarBase}
             aviso={mostrarAviso}
           />

@@ -13,7 +13,7 @@ Ele está migrando a gestão da Benjoca do app "Meu Bolso" (Lovable, antunesdesp
 - Supabase: projeto `gastos-familia-dados` (ref `ghbaeaxcvbnlctaqwiyh`). URL e chave pública ficam em `src/lib.js`.
   SQL Editor direto: https://supabase.com/dashboard/project/ghbaeaxcvbnlctaqwiyh/sql/new
 - Migrações ficam em `supabase/` e o **Julio roda à mão** no SQL Editor, em ordem: `schema.sql`, `02-contas.sql`, `03-a-pagar.sql`, `04-benjoca.sql` (todas já rodadas em 15/11/2026),
-  `05-vendas.sql` e `06-estoque.sql` (rodados em 15/11/2026), `07-sobrou-casa.sql` (criado em 15/11/2026 — **confirmar se ele rodou**).
+  `05-vendas.sql` e `06-estoque.sql` (rodados em 15/11/2026), `07-sobrou-casa.sql` (criado em 15/11/2026 — **confirmar se ele rodou**), `08-pix-renan.sql` (criado em 16/11/2026 — **confirmar se ele rodou**).
   Toda migração nova deve ser idempotente (`if not exists`, `create or replace`) e não apagar dados. Mande para ele o link do arquivo no GitHub + o link do SQL Editor.
 
 ## Stack e arquivos
@@ -69,12 +69,15 @@ Decisões do Julio (15/11/2026):
      quanto veio de casa. O app só manda `sobrou_casa` ao salvar quando a noite já tem esse campo (não quebra antes do SQL 07).
    - **"Pegou" vai para a casa** (pedido do Julio, 16/11/2026): ao fechar a noite, se pegou > 0, `lancamentosDaNoite` cria uma retirada
      (transferência escopo negócio, Caixa Benjoca → primeira conta da casa do tipo `dinheiro`, "Peguei na noite de dd/mm", com `noite_id`;
-     reabrir apaga junto). Sem conta dinheiro na casa, não cria e a tela avisa. O dinheiro buscado na segunda (`buscas`) ainda NÃO vira retirada.
+     reabrir apaga junto). Sem conta dinheiro na casa, não cria e a tela avisa. O Pix do Renan (`buscas`) vira transferência pelo botão "Recebi" (ver abaixo).
    - **Resumo no WhatsApp** (pedido do Julio, 16/11/2026): `textoFechamento` + `mandarNoWhatsApp` (wa.me) em `vendas.js`. Botão na noite fechada
      e "prévia" na noite aberta: iFood e pizzaria por sabor, sobrou, dinheiro da noite e saldos acumulados.
    - **Nomes na tela** (pedido do Julio, 16/11/2026): reserva dos boys = **"Taxa Boy Realizado"**; taxas pagas aos boys = **"Custo Taxa Boy"**.
      No código continuam `reserva` e `taxas`.
      "A buscar na pizzaria" = na verdade **"A receber do Renan (Pix)"** (o Renan manda por Pix, ele não busca em dinheiro); no código continua `aBuscar`/`buscas`.
+   - **Botão "Recebi"** (pedido do Julio, 16/11/2026): o a receber acumula noite a noite; na folha ele escolhe a conta (lembrada em localStorage,
+     padrão = primeira conta `banco` da casa) e o app grava a busca + transferência escopo negócio Caixa Benjoca → conta (`origem` 'pix-renan',
+     `busca_id`, SQL 08 com on delete cascade). Antes do SQL 08 grava sem `busca_id` (excluir o Pix não apaga a transferência).
    Plano original:
    - Durante a correria, anotar só o nome do cliente; no fim da noite o app pergunta quem falta completar.
    - Importar pedidos do iFood por print da tela ou foto da comanda impressa (OCR/visão). Nível 3 futuro: API do iFood (exige parceiro com CNPJ/MEI; não verificado).

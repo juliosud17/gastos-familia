@@ -10,7 +10,7 @@ import { custoPorSabor } from './negocio.js'
 
 const sinal = (v) => (v < 0 ? '−' : v > 0 ? '+' : '') + dinheiro(Math.abs(v))
 
-export default function Vendas({ api, familia, categorias, contaNegocio, contaDinheiro, recarregarBase, aviso }) {
+export default function Vendas({ api, familia, categorias, contaNegocio, contaDinheiro, contasCasa = [], recarregarBase, aviso }) {
   const cfg = useMemo(() => configNegocio(familia), [familia])
   const [data, setData] = useState(noiteDeHoje)
   const [noite, setNoite] = useState(null) // null = carregando
@@ -181,12 +181,28 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
     }
   }
 
-  async function salvarBusca(valor) {
+  // "Recebi": dá baixa no que falta receber do Renan e lança a transferência Caixa Benjoca → conta escolhida (pedido do Julio, 16/11/2026)
+  async function salvarBusca(valor, contaDestino) {
     try {
-      await api.salvarBusca({ familia_id: familia.id, valor, data: hojeISO() })
+      const busca = await api.salvarBusca({ familia_id: familia.id, valor, data: hojeISO() })
+      let entrou = false
+      if (contaDestino && contaNegocio && contaDestino.id !== contaNegocio.id) {
+        const l = {
+          familia_id: familia.id, escopo: 'negocio', tipo: 'transferencia', valor, data: hojeISO(), categoria_id: null,
+          conta_id: contaNegocio.id, conta_destino_id: contaDestino.id, origem: 'pix-renan', descricao: 'Pix do Renan (vendas da pizzaria)',
+        }
+        try {
+          await api.salvarLancamento({ ...l, busca_id: busca?.id })
+        } catch (e) {
+          if (!/busca_id/.test(textoErro(e) + (e?.message || ''))) throw e
+          await api.salvarLancamento(l) // SQL 08 ainda não rodado
+        }
+        entrou = true
+        recarregarBase?.()
+      }
       setFolha(null)
       carregarSaldos()
-      aviso('Anotado: Renan mandou ' + dinheiro(valor) + ' no Pix')
+      aviso(entrou ? `Recebido: ${dinheiro(valor)} entrou em ${contaDestino.nome}` : 'Anotado: Renan mandou ' + dinheiro(valor) + ' no Pix')
     } catch (e) {
       aviso(textoErro(e))
     }
@@ -423,7 +439,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
         />
       )}
       {folha === 'busca' && (
-        <Buscar aBuscar={acum.aBuscar} buscas={buscas} aoSalvar={salvarBusca} aoExcluir={excluirBusca} aoFechar={() => setFolha(null)} />
+        <Buscar aBuscar={acum.aBuscar} buscas={buscas} contas={contasCasa} aoSalvar={salvarBusca} aoExcluir={excluirBusca} aoFechar={() => setFolha(null)} />
       )}
       {folha === 'ajustes' && <AjustesVendas cfg={cfg} aoSalvar={salvarAjustes} aoFechar={() => setFolha(null)} />}
     </div>
@@ -727,8 +743,15 @@ function EditarPedido({ pedido, cfg, aoSalvar, aoExcluir, aoFechar }) {
 
 // ---------------- Buscar na pizzaria ----------------
 
-function Buscar({ aBuscar, buscas, aoSalvar, aoExcluir, aoFechar }) {
+const CHAVE_CONTA_PIX = 'caderneta-conta-pix-renan'
+function Buscar({ aBuscar, buscas, contas = [], aoSalvar, aoExcluir, aoFechar }) {
   const [valor, setValor] = useState(aBuscar > 0 ? numero(aBuscar) : '')
+  const [contaId, setContaId] = useState(() => {
+    let salva = null
+    try { salva = localStorage.getItem(CHAVE_CONTA_PIX) } catch {}
+    return (contas.find((c) => c.id === salva) || contas.find((c) => c.tipo === 'banco') || contas[0])?.id || ''
+  })
+  const conta = contas.find((c) => c.id === contaId) || null
   const v = lerNumero(valor)
   return (
     <Folha titulo="A receber do Renan" aoFechar={aoFechar} classe="folha-negocio">
@@ -736,15 +759,26 @@ function Buscar({ aBuscar, buscas, aoSalvar, aoExcluir, aoFechar }) {
         className="formulario"
         onSubmit={(e) => {
           e.preventDefault()
-          if (v > 0) aoSalvar(v)
+          if (!(v > 0)) return
+          try { if (contaId) localStorage.setItem(CHAVE_CONTA_PIX, contaId) } catch {}
+          aoSalvar(v, conta)
         }}
       >
-        <p className="nota">Falta receber do Renan: <strong>{dinheiro(aBuscar)}</strong>. Anote quanto ele mandou no Pix.</p>
+        <p className="nota">Falta receber do Renan: <strong>{dinheiro(aBuscar)}</strong>. Vai somando a cada noite até você apertar Recebi.</p>
         <label className="campo">
           <span>Quanto o Renan mandou no Pix</span>
           <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />
         </label>
-        <button className="botao principal" disabled={!(v > 0)}>Anotar Pix recebido</button>
+        {contas.length > 0 && (
+          <label className="campo">
+            <span>Caiu em qual conta</span>
+            <select value={contaId} onChange={(e) => setContaId(e.target.value)}>
+              {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </label>
+        )}
+        <button className="botao principal" disabled={!(v > 0)}>Recebi</button>
+        {conta && <p className="nota">Sai do Caixa Benjoca e entra em {conta.nome}. Na casa aparece como “Benjoca trouxe para casa”.</p>}
         {buscas.length > 0 && (
           <div>
             <p className="rotulo-grupo">Últimas vezes</p>

@@ -580,6 +580,7 @@ export function criarApiDemo() {
     },
     async excluirBusca(id) {
       db.buscas = db.buscas.filter((b) => b.id !== id)
+      db.lancamentos = db.lancamentos.filter((l) => l.busca_id !== id)
     },
     async fecharNoite(noite, resumo, lancs) {
       db.lancamentos = db.lancamentos.filter((l) => l.noite_id !== noite.id)
