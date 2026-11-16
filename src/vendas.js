@@ -233,3 +233,54 @@ export function lancamentosDaNoite(noite, conta, categorias, userId, contaDinhei
     l.push({ ...base, tipo: 'transferencia', valor: r.pegou, categoria_id: null, conta_destino_id: contaDinheiro.id, descricao: `Peguei na noite de ${dm}` })
   return l
 }
+
+// Texto do fechamento para mandar no WhatsApp (pedido do Julio, 16/11/2026): resumo da noite e o que saiu em cada frente
+export function textoFechamento(noite, conta, acum, cfg) {
+  const R = (v) => 'R$ ' + (+v || 0).toFixed(2).replace('.', ',')
+  const sinalR = (v) => (v < 0 ? '−' : v > 0 ? '+' : '') + R(Math.abs(v))
+  const dm = noite.data.slice(8, 10) + '/' + noite.data.slice(5, 7)
+  const lista = (un) => {
+    const l = SABORES.filter((s) => +un?.[s.id] > 0).map((s) => `  • ${un[s.id]} ${s.tipo === 'pote' ? 'pote' : 'brownie'}${+un[s.id] > 1 ? 's' : ''} ${s.nome}`)
+    return l.length ? l.join('\n') : '  • nada'
+  }
+  const qtd = (un, tipo) => Object.entries(un || {}).reduce((s, [k, n]) => s + (SABOR[k]?.tipo === tipo ? +n || 0 : 0), 0)
+  const pl = (n, p) => `${n} ${p}${n === 1 ? '' : 's'}`
+  const pz = conta.pizzaria
+  const ifu = conta.ifood.unidades
+  const t = []
+  t.push(`🍫 *Benjoca — fechamento da noite de ${dm}*${noite.fechada ? '' : ' (ainda aberta)'}`)
+  t.push('')
+  t.push(`📦 Levou ${conta.levou} un. · sobrou ${conta.sobrou} un.`)
+  t.push('')
+  t.push(`🛵 *iFood* — ${conta.ifood.pedidos} ${conta.ifood.pedidos === 1 ? 'pedido' : 'pedidos'}, ${pl(qtd(ifu, 'pote'), 'pote')} e ${pl(qtd(ifu, 'brownie'), 'brownie')}`)
+  t.push(lista(ifu))
+  t.push(`  Total ${R(conta.ifood.valor)} (pelo app ${R(conta.ifood.online)}, na entrega ${R(conta.ifood.pagoEntrega)})`)
+  t.push(`  Comissão ${String(cfg.comissao).replace('.', ',')}%: −${R(conta.ifood.comissao)}`)
+  t.push('')
+  t.push(`🍕 *Pizzaria* — ${pl(pz.potes, 'pote')} e ${pl(pz.brownies, 'brownie')}`)
+  t.push(lista(pz.unidades))
+  t.push(`  Total ${R(pz.valor)}`)
+  if (conta.sobrou > 0) {
+    t.push('')
+    t.push('🏠 *Sobrou*')
+    t.push(lista(noite.sobrou))
+  }
+  t.push('')
+  t.push('💰 *Dinheiro da noite*')
+  t.push(`  Em mão: ${R(conta.emMao)}`)
+  t.push(`  Reserva dos boys: −${R(conta.reserva.total)}`)
+  t.push(`  Seu: ${R(conta.seu)}`)
+  t.push(`  Taxas pagas aos boys: ${R(conta.taxas.total)} (${conta.taxas.entregas} ${conta.taxas.entregas === 1 ? 'entrega' : 'entregas'})`)
+  t.push(`  Saldo dos boys da noite: ${sinalR(conta.saldoBoys)}`)
+  t.push(`  Pegou na hora: ${R(conta.pegou)} · ficou para buscar: ${R(conta.aBuscar)}`)
+  if (acum) {
+    t.push('')
+    t.push(`🛵 Saldo dos boys acumulado: ${sinalR(acum.saldoBoys)}`)
+    t.push(`🍕 A buscar na pizzaria: ${R(acum.aBuscar)}`)
+  }
+  return t.join('\n')
+}
+
+export function mandarNoWhatsApp(texto) {
+  window.location.href = 'https://wa.me/?text=' + encodeURIComponent(texto)
+}

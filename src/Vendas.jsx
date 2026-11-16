@@ -4,7 +4,7 @@ import Folha from './Folha.jsx'
 import { Seta } from './Icones.jsx'
 import {
   SABOR, POTES, BROWNIES, CARDAPIO, ITEM, configNegocio, contaNoite, acumulados, faltaNoPedido, resumoPedido,
-  valorPedido, noiteDeHoje, somarDias, lancamentosDaNoite,
+  valorPedido, noiteDeHoje, somarDias, lancamentosDaNoite, textoFechamento, mandarNoWhatsApp,
 } from './vendas.js'
 import { custoPorSabor } from './negocio.js'
 
@@ -247,6 +247,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
                 <strong>Noite fechada.</strong> Já está anotada no caderno da Benjoca: pizzaria {dinheiro(noite.resumo?.pizzaria.valor)}, iFood na entrega {dinheiro(noite.resumo?.ifood.pagoEntrega)}, taxas dos boys {dinheiro(noite.resumo?.taxas.total)}.
                 {noite.resumo?.pegou > 0 && contaDinheiro && ` Os ${dinheiro(noite.resumo.pegou)} que você pegou entraram na casa, em ${contaDinheiro.nome}.`}
               </p>
+              <button className="botao principal largo" onClick={() => mandarNoWhatsApp(textoFechamento(noite, conta, acum, cfg))}>📲 Mandar resumo no WhatsApp</button>
               <button className="botao secundario" onClick={reabrir}>Reabrir para corrigir</button>
             </section>
           )}
@@ -401,6 +402,9 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
               <button className="botao principal largo botao-fechar" disabled={fechando || conta.levou === 0} onClick={fechar}>
                 {fechando ? 'Fechando…' : pendentes.length ? `Completar pedidos (${pendentes.length})` : 'Fechar a noite'}
               </button>
+            )}
+            {!fechada && conta.levou > 0 && (
+              <button className="link centro" onClick={() => mandarNoWhatsApp(textoFechamento(noite, conta, acum, cfg))}>📲 Mandar prévia no WhatsApp</button>
             )}
             {!fechada && conta.levou === 0 && <p className="nota centro">Anote o que levou para poder fechar.</p>}
           </Bloco>
