@@ -190,7 +190,7 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
               <span>iFood<small>{somaNoites((r) => r.ifood.pedidos)} pedidos · {somaNoites((r) => r.ifood.total)} unidades · comissão ~{dinheiro(somaNoites((r) => r.ifood.comissao))}</small></span>
               <strong>{dinheiro(somaNoites((r) => r.ifood.valor))}</strong>
             </p>
-            <p className="linha-conta"><span>Taxas dos boys</span><strong>{dinheiro(somaNoites((r) => r.taxas.total))}</strong></p>
+            <p className="linha-conta"><span>Custo Taxa Boy</span><strong>{dinheiro(somaNoites((r) => r.taxas.total))}</strong></p>
             <p className="linha-conta">
               <span>Saldo dos boys no mês</span>
               <strong className={somaNoites((r) => r.saldoBoys) < 0 ? 'tinta-vermelha' : 'tinta-verde'}>{dinheiro(somaNoites((r) => r.saldoBoys))}</strong>
@@ -360,7 +360,7 @@ function Detalhamento({ noites, lancamentos, producao, catPorId, cfg, periodo })
             <L t="Vendas diretas (pizzaria)" v={d.diretas} />
             <L t="Custo de produção (diretas)" v={d.custoDiretas} neg />
             <L t="Lucro operacional" v={d.lucroOperacional} forte />
-            <L t="Reserva dos boys" v={d.taxasBoys} neg sub={`juntado nas vendas · pagas ${dinheiro(d.taxasPagas)}, diferença ${d.taxasBoys - d.taxasPagas >= 0 ? 'ficou' : 'saiu'} no saldo dos boys (${dinheiro(Math.abs(d.taxasBoys - d.taxasPagas))})`} />
+            <L t="Taxa Boy Realizado" v={d.taxasBoys} neg sub={`juntado nas vendas · Custo Taxa Boy ${dinheiro(d.taxasPagas)}, diferença ${d.taxasBoys - d.taxasPagas >= 0 ? 'ficou' : 'saiu'} no saldo dos boys (${dinheiro(Math.abs(d.taxasBoys - d.taxasPagas))})`} />
             <L t="Despesas operacionais" v={d.despesasTotal} neg sub={Object.keys(d.despesas).length ? Object.entries(d.despesas).map(([id, v]) => `${nomeCat(id)} ${dinheiro(v)}`).join(' · ') : 'sem insumos (já estão no custo)'} />
             {d.apurados.length > 0 && (
               <>

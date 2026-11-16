@@ -244,7 +244,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
           {fechada && (
             <section className="noite-fechada">
               <p>
-                <strong>Noite fechada.</strong> Já está anotada no caderno da Benjoca: pizzaria {dinheiro(noite.resumo?.pizzaria.valor)}, iFood na entrega {dinheiro(noite.resumo?.ifood.pagoEntrega)}, taxas dos boys {dinheiro(noite.resumo?.taxas.total)}.
+                <strong>Noite fechada.</strong> Já está anotada no caderno da Benjoca: pizzaria {dinheiro(noite.resumo?.pizzaria.valor)}, iFood na entrega {dinheiro(noite.resumo?.ifood.pagoEntrega)}, Custo Taxa Boy {dinheiro(noite.resumo?.taxas.total)}.
                 {noite.resumo?.pegou > 0 && contaDinheiro && ` Os ${dinheiro(noite.resumo.pegou)} que você pegou entraram na casa, em ${contaDinheiro.nome}.`}
               </p>
               <button className="botao principal largo" onClick={() => mandarNoWhatsApp(textoFechamento(noite, conta, acum, cfg))}>📲 Mandar resumo no WhatsApp</button>
@@ -309,7 +309,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
             )}
           </Bloco>
 
-          <Bloco n="3" titulo="Taxas dos boys" total={dinheiro(conta.taxas.total)}>
+          <Bloco n="3" titulo="Custo Taxa Boy" total={dinheiro(conta.taxas.total)}>
             <p className="nota">
               Dos pedidos do iFood: {dinheiro(conta.taxas.pedidos)}. Outras entregas da noite:
             </p>
@@ -409,7 +409,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
             {!fechada && conta.levou === 0 && <p className="nota centro">Anote o que levou para poder fechar.</p>}
           </Bloco>
 
-          <button className="link ajustes-vendas" onClick={() => setFolha('ajustes')}>⚙️ Preços, comissão e reserva dos boys</button>
+          <button className="link ajustes-vendas" onClick={() => setFolha('ajustes')}>⚙️ Preços, comissão e Taxa Boy Realizado</button>
         </>
       )}
 
@@ -565,7 +565,7 @@ function Fechamento({ conta, cfg }) {
       </p>
       <p className="linha-conta">
         <span>
-          Reserva dos boys
+          Taxa Boy Realizado
           <small>{conta.ifood.potesPagos} potes iFood × {numero(cfg.reservaPoteIfood)} + {pz.potes + pz.brownies} un. pizzaria × {numero(cfg.reservaPizzaria)}</small>
         </span>
         <strong className="tinta-vermelha">− {dinheiro(conta.reserva.total)}</strong>
@@ -576,13 +576,13 @@ function Fechamento({ conta, cfg }) {
       </p>
       <p className="linha-conta">
         <span>
-          Taxas pagas aos boys
+          Custo Taxa Boy
           <small>{conta.taxas.entregas} {conta.taxas.entregas === 1 ? 'entrega' : 'entregas'}</small>
         </span>
         <strong>{dinheiro(conta.taxas.total)}</strong>
       </p>
       <p className="linha-conta">
-        <span>Saldo dos boys da noite<small>reserva − taxas, vai para o banco de saldo</small></span>
+        <span>Saldo dos boys da noite<small>Realizado − Custo, vai para o banco de saldo</small></span>
         <strong className={conta.saldoBoys < 0 ? 'tinta-vermelha' : 'tinta-verde'}>{sinal(conta.saldoBoys)}</strong>
       </p>
       {conta.ifood.pedidos > 0 && (
@@ -774,10 +774,10 @@ const CAMPOS_AJUSTE = [
   ['brownieIfood', 'Brownie avulso no iFood'],
   ['ovomaltineIfood', 'Brownie de Ovomaltine no iFood'],
   ['ovomaltineExtra', 'Ovomaltine a mais no combo'],
-  ['reservaPoteIfood', 'Reserva dos boys por pote do iFood'],
+  ['reservaPoteIfood', 'Taxa Boy Realizado por pote do iFood'],
   ['potePizzaria', 'Pote na pizzaria'],
   ['browniePizzaria', 'Brownie na pizzaria'],
-  ['reservaPizzaria', 'Reserva dos boys por unidade na pizzaria'],
+  ['reservaPizzaria', 'Taxa Boy Realizado por unidade na pizzaria'],
   ['saldoBoysInicial', 'Saldo dos boys antes do app (pode ser negativo)'],
   ['aBuscarInicial', 'Já estava guardado na pizzaria antes do app'],
 ]
@@ -808,7 +808,7 @@ function AjustesVendas({ cfg, aoSalvar, aoFechar }) {
           </label>
         ))}
         <label className="campo">
-          <span>Taxas dos boys (botões rápidos, separe com espaço)</span>
+          <span>Custo Taxa Boy (botões rápidos, separe com espaço)</span>
           <input value={taxas} onChange={(e) => setTaxas(e.target.value)} placeholder="4 6 7 8" />
         </label>
         <button className="botao principal">Salvar ajustes</button>
