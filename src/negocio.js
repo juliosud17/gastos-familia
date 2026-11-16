@@ -78,9 +78,15 @@ export function projecao(lancamentos28, lucroMes, contaPorId, catPorId, cfg, ano
   if (hoje.getFullYear() !== ano || hoje.getMonth() !== mes) return null
   const ultimo = new Date(ano, mes + 1, 0).getDate()
   const restam = ultimo - hoje.getDate()
+  // Se o negócio começou a ser anotado há menos de 28 dias, divide só pelos dias com anotação
+  const datas = (lancamentos28 || []).filter((l) => (l.escopo || 'casa') === 'negocio').map((l) => l.data).sort()
+  if (!datas.length) return null
+  const hojeIso = hojeISO()
+  const dias = Math.min(28, Math.round((new Date(hojeIso + 'T12:00:00') - new Date(datas[0] + 'T12:00:00')) / 864e5) + 1)
+  if (dias < 7) return { poucosDias: dias }
   const base = numerosNegocio(lancamentos28, contaPorId, catPorId, cfg)
-  const porDia = base.lucro / 28
-  return { porDia: r2(porDia), restam, fim: r2(lucroMes + porDia * restam) }
+  const porDia = base.lucro / dias
+  return { porDia: r2(porDia), restam, dias, fim: r2(lucroMes + porDia * restam) }
 }
 
 // Lista dos últimos n meses terminando em (ano, mes), do mais antigo para o mais novo

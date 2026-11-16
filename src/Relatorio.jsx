@@ -127,15 +127,21 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
         )}
       </section>
 
-      {proj && (
+      {proj?.poucosDias && (
+        <section className="bloco">
+          <h2>Para onde o mês vai</h2>
+          <p className="nota">A estimativa aparece quando tiver pelo menos 7 dias de anotações da Benjoca (agora: {proj.poucosDias}).</p>
+        </section>
+      )}
+      {proj && !proj.poucosDias && (
         <section className="bloco">
           <h2>Para onde o mês vai</h2>
           <p className="texto-projecao">
-            No ritmo dos últimos 28 dias ({dinheiro(proj.porDia)} de lucro por dia), {MESES[periodo.mes]} deve fechar perto de{' '}
+            No ritmo dos últimos {proj.dias} dias ({dinheiro(proj.porDia)} de lucro por dia), {MESES[periodo.mes]} deve fechar perto de{' '}
             <strong>{dinheiro(proj.fim)}</strong>
             {meta && (proj.fim >= meta.meta ? ', acima da meta.' : `, ${dinheiro(meta.meta - proj.fim)} abaixo da meta.`)}
           </p>
-          <p className="nota">É uma estimativa. Usa 28 dias para pegar 4 repasses do iFood e não inflar o começo do mês.</p>
+          <p className="nota">É uma estimativa. Com 28 dias de anotações ela pega 4 repasses do iFood e não infla o começo do mês.</p>
         </section>
       )}
 

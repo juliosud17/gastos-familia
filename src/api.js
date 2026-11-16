@@ -64,8 +64,24 @@ export const apiReal = {
         .order('created_at', { ascending: false })
     )
   },
+  // Vários meses: busca em páginas de 1000 (o Supabase corta em 1000 linhas por pedido)
   async intervalo(familiaId, ini, fim) {
-    return ok(await supabase.from('lancamentos').select('*').eq('familia_id', familiaId).gte('data', ini).lte('data', fim).order('data', { ascending: false }))
+    const todas = []
+    for (let de = 0; ; de += 1000) {
+      const pagina = ok(
+        await supabase
+          .from('lancamentos')
+          .select('id, tipo, valor, data, escopo, categoria_id, conta_id, conta_destino_id, descricao')
+          .eq('familia_id', familiaId)
+          .gte('data', ini)
+          .lte('data', fim)
+          .order('data', { ascending: false })
+          .order('id')
+          .range(de, de + 999)
+      )
+      todas.push(...pagina)
+      if (pagina.length < 1000) return todas
+    }
   },
   async salvarLancamento(l) {
     const { id, ...campos } = l

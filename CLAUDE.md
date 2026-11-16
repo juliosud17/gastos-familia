@@ -88,7 +88,13 @@ Decisões do Julio (15/11/2026):
      receitas só de jun–out/2026). Ele cola essa tabela no Relatório (📥) e ela vai para `negocio_config.historico` {"AAAA-MM": {receitas, lucro}}.
      **Não pôr esses números no código: o repositório é público.** Meses sem anotação do negócio na Caderneta usam o lucro do histórico
      (`comHistorico`); seletor 6/12/Tudo. Divisão gás/luz: feita na etapa 4.
-7. Desligar o Lovable.
+7. Desligar o Lovable (depois de 1–2 semanas usando a aba Vendas e de recontar o estoque).
+
+**Checkup de 15/11/2026:** todas as telas testadas na demo (casa e negócio), API real e demo com as mesmas funções.
+Corrigido: `intervalo` paginado (limite de 1000 linhas do Supabase) e projeção dividindo só pelos dias com anotação do negócio (mínimo 7).
+Não deu para testar o Supabase real daqui (proxy bloqueia o host); ele disse que rodou o 05 e o 06.
+Pendências do Julio: recontar estoque; receita do Ovomaltine; quantidade de emulsificante; lucro de out/2026; mensalidade do iFood;
+saldo inicial dos boys e "a buscar" (Ajustes das vendas); anotar o repasse do iFood toda quarta (o lucro depende disso).
 
 **Esperando do Julio (checklist, blocos 2 a 5):**
 - Bloco 2: cardápio do iFood e combos — **recebido em 15/11/2026** (prints), salvo em `dados-benjoca/cardapio-ifood.csv`
