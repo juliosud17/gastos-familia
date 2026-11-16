@@ -67,6 +67,9 @@ Decisões do Julio (15/11/2026):
    - **Sobrou separado** (pedido do Julio, 15/11/2026): `noites.sobrou_casa` (SQL 07) = parte do que sobrou que foi para casa; `sobrou` continua
      sendo o total (todo o resto do app usa só ele). Passo 4 tem abas "Ficou na pizzaria" / "Levou para casa"; o "veio" da noite seguinte mostra
      quanto veio de casa. O app só manda `sobrou_casa` ao salvar quando a noite já tem esse campo (não quebra antes do SQL 07).
+   - **"Pegou" vai para a casa** (pedido do Julio, 16/11/2026): ao fechar a noite, se pegou > 0, `lancamentosDaNoite` cria uma retirada
+     (transferência escopo negócio, Caixa Benjoca → primeira conta da casa do tipo `dinheiro`, "Peguei na noite de dd/mm", com `noite_id`;
+     reabrir apaga junto). Sem conta dinheiro na casa, não cria e a tela avisa. O dinheiro buscado na segunda (`buscas`) ainda NÃO vira retirada.
    Plano original:
    - Durante a correria, anotar só o nome do cliente; no fim da noite o app pergunta quem falta completar.
    - Importar pedidos do iFood por print da tela ou foto da comanda impressa (OCR/visão). Nível 3 futuro: API do iFood (exige parceiro com CNPJ/MEI; não verificado).

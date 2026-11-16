@@ -10,7 +10,7 @@ import { custoPorSabor } from './negocio.js'
 
 const sinal = (v) => (v < 0 ? '−' : v > 0 ? '+' : '') + dinheiro(Math.abs(v))
 
-export default function Vendas({ api, familia, categorias, contaNegocio, recarregarBase, aviso }) {
+export default function Vendas({ api, familia, categorias, contaNegocio, contaDinheiro, recarregarBase, aviso }) {
   const cfg = useMemo(() => configNegocio(familia), [familia])
   const [data, setData] = useState(noiteDeHoje)
   const [noite, setNoite] = useState(null) // null = carregando
@@ -157,7 +157,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
       try {
         resumo.custos = custoPorSabor(await api.producao(familia.id)).custos
       } catch {}
-      const lancs = lancamentosDaNoite({ ...n, resumo }, contaNegocio, categorias)
+      const lancs = lancamentosDaNoite({ ...n, resumo }, contaNegocio, categorias, undefined, contaDinheiro)
       const salva = await api.fecharNoite(n, resumo, lancs)
       setNoite((x) => ({ ...x, ...salva }))
       carregarSaldos()
@@ -243,7 +243,10 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
         <>
           {fechada && (
             <section className="noite-fechada">
-              <p><strong>Noite fechada.</strong> Já está anotada no caderno da Benjoca: pizzaria {dinheiro(noite.resumo?.pizzaria.valor)}, iFood na entrega {dinheiro(noite.resumo?.ifood.pagoEntrega)}, taxas dos boys {dinheiro(noite.resumo?.taxas.total)}.</p>
+              <p>
+                <strong>Noite fechada.</strong> Já está anotada no caderno da Benjoca: pizzaria {dinheiro(noite.resumo?.pizzaria.valor)}, iFood na entrega {dinheiro(noite.resumo?.ifood.pagoEntrega)}, taxas dos boys {dinheiro(noite.resumo?.taxas.total)}.
+                {noite.resumo?.pegou > 0 && contaDinheiro && ` Os ${dinheiro(noite.resumo.pegou)} que você pegou entraram na casa, em ${contaDinheiro.nome}.`}
+              </p>
               <button className="botao secundario" onClick={reabrir}>Reabrir para corrigir</button>
             </section>
           )}
@@ -364,6 +367,13 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
                   }}
                 />
               </div>
+              {+noite.pegou > 0 && (
+                <p className="nota">
+                  {contaDinheiro
+                    ? `Ao fechar, ${dinheiro(noite.pegou)} entram na casa, em ${contaDinheiro.nome} (como retirada da Benjoca).`
+                    : 'Para o que você pegou entrar na casa sozinho, crie na Carteira da casa uma conta do tipo dinheiro.'}
+                </p>
+              )}
               <p className="linha-conta destaque">
                 <span>Fica para buscar na segunda</span>
                 <strong className={conta.aBuscar < 0 ? 'tinta-vermelha' : ''}>{dinheiro(conta.aBuscar)}</strong>

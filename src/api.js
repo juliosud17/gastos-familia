@@ -379,8 +379,8 @@ function semente() {
     ped(id, 'Thiago', [L('pote', { 'pote-chocolate': 2 })], 8)
     noite.resumo = contaNoite(noite, pedidos.filter((p) => p.noite_id === id), cfg)
     noites.push(noite)
-    for (const x of lancamentosDaNoite(noite, contas[3], categorias, 'eu')) {
-      lancamentos.push({ ...x, id: uid(), conta_destino_id: null, noite_id: id, created_at: new Date(Date.now() - e.d * 864e5).toISOString() })
+    for (const x of lancamentosDaNoite(noite, contas[3], categorias, 'eu', contas[0])) {
+      lancamentos.push({ conta_destino_id: null, ...x, id: uid(), noite_id: id, created_at: new Date(Date.now() - e.d * 864e5).toISOString() })
     }
   }
   const hojeId = uid()

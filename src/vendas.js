@@ -209,7 +209,7 @@ export function somarDias(iso, n) {
 }
 
 // Anotações que o fechamento põe no caderno do negócio (conta Caixa do negócio)
-export function lancamentosDaNoite(noite, conta, categorias, userId) {
+export function lancamentosDaNoite(noite, conta, categorias, userId, contaDinheiro = null) {
   const r = noite.resumo
   const dm = noite.data.slice(8, 10) + '/' + noite.data.slice(5, 7)
   const cat = (tipo, ...nomes) => {
@@ -228,5 +228,8 @@ export function lancamentosDaNoite(noite, conta, categorias, userId) {
     l.push({ ...base, tipo: 'receita', valor: r.ifood.pagoEntrega, categoria_id: cat('receita', 'Repasse iFood', 'iFood'), descricao: `Pedidos iFood pagos na entrega, noite de ${dm}` })
   if (r.taxas.total > 0)
     l.push({ ...base, tipo: 'despesa', valor: r.taxas.total, categoria_id: cat('despesa', 'Entregas'), descricao: `Taxas dos boys, noite de ${dm} (${r.taxas.entregas} entregas)` })
+  // O que pegou em dinheiro na noite vai para a casa: retirada do caixa da Benjoca para o Dinheiro da casa (pedido do Julio, 16/11/2026)
+  if (r.pegou > 0 && conta && contaDinheiro && conta.id !== contaDinheiro.id)
+    l.push({ ...base, tipo: 'transferencia', valor: r.pegou, categoria_id: null, conta_destino_id: contaDinheiro.id, descricao: `Peguei na noite de ${dm}` })
   return l
 }
