@@ -43,6 +43,12 @@ export const CONFIG_PADRAO = {
   taxas: [4, 6, 7, 8],
   saldoBoysInicial: 0,
   aBuscarInicial: 0,
+  // Etapa 4: meta e divisão das contas da casa que a Benjoca usa (decisão do Julio, 15/11/2026)
+  metaLucro: 10000,
+  rateios: [
+    { nome: 'Gás', pct: 70, termos: ['gás', 'botijão'] },
+    { nome: 'Luz', pct: 30, termos: ['luz', 'energia', 'conta de luz'] },
+  ],
 }
 
 export function configNegocio(familia) {

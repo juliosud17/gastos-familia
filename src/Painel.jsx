@@ -7,6 +7,9 @@ import Contas from './Contas.jsx'
 import APagar from './APagar.jsx'
 import Producao from './Producao.jsx'
 import Vendas from './Vendas.jsx'
+import Relatorio from './Relatorio.jsx'
+import { configNegocio } from './vendas.js'
+import { numerosNegocio, situacaoMeta } from './negocio.js'
 
 const ABAS = [
   { id: 'inicio', nome: 'Início', Icone: IconeCasa },
@@ -21,7 +24,7 @@ const ABAS_NEGOCIO = [
   { id: 'extrato', nome: 'Extrato', Icone: IconeLista },
   { id: 'producao', nome: 'Produção', Icone: IconeForno },
 ]
-const SO_NEGOCIO = ['producao', 'vendas']
+const SO_NEGOCIO = ['producao', 'vendas', 'relatorio']
 const TODAS_ABAS = [...ABAS.map((a) => a.id), ...SO_NEGOCIO, 'ajustes']
 
 // Valor que a anotação soma no caderno (retirada: entra na casa, sai do negócio)
@@ -163,6 +166,7 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
   }
 
   const catPorId = useMemo(() => Object.fromEntries(categorias.map((c) => [c.id, c])), [categorias])
+  const cfg = useMemo(() => configNegocio(familia), [familia])
   const pessoaPorId = useMemo(() => Object.fromEntries(membros.map((m) => [m.user_id, m])), [membros])
   const contaPorId = useMemo(() => Object.fromEntries(contas.map((c) => [c.id, c])), [contas])
 
@@ -187,8 +191,10 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
     }
     // Na casa, o que veio do negócio conta como entrada; no negócio, o lucro não desconta as retiradas
     if (escopo === 'casa') return { entrou: entrou + retiradas, saiu, sobra: entrou + retiradas - saiu, retiradas }
-    return { entrou, saiu, sobra: entrou - saiu, retiradas }
-  }, [doEscopo, escopo, contaPorId])
+    // No negócio, o lucro também desconta a parte da luz e do gás da casa (divisão combinada)
+    const n = numerosNegocio(lancamentos, contaPorId, catPorId, cfg)
+    return { entrou, saiu, sobra: n.lucro, retiradas, rateio: n.rateio }
+  }, [doEscopo, escopo, contaPorId, lancamentos, catPorId, cfg])
 
   async function salvar(l) {
     await api.salvarLancamento({ ...l, familia_id: familia.id })
@@ -296,6 +302,7 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
             alertas={alertasEscopo}
             nomeNegocio={nomeNegocio}
             retirar={() => setFolha({ tipo: 'transferencia', escopo: 'negocio' })}
+            meta={negocio ? situacaoMeta(totais.sobra, cfg, periodo.ano, periodo.mes) : null}
           />
         )}
         {aba === 'extrato' && (
@@ -352,6 +359,19 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
           />
         )}
         {aba === 'producao' && negocio && <Producao api={api} familia={familia} aviso={mostrarAviso} />}
+        {aba === 'relatorio' && negocio && (
+          <Relatorio
+            api={api}
+            familia={familia}
+            cfg={cfg}
+            periodo={periodo}
+            catPorId={catPorId}
+            contaPorId={contaPorId}
+            lancamentosMes={lancamentos}
+            recarregarBase={recarregarBase}
+            aviso={mostrarAviso}
+          />
+        )}
         {aba === 'vendas' && negocio && (
           <Vendas
             api={api}
@@ -411,7 +431,7 @@ function BotaoAba({ aba, ativa, onClick }) {
 
 // ---------------- Início ----------------
 
-function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, escopo, abrir, irPara, guardado, alertas = [], nomeNegocio, retirar }) {
+function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, escopo, abrir, irPara, guardado, alertas = [], nomeNegocio, retirar, meta }) {
   const negocio = escopo === 'negocio'
   const comLimite = categorias.filter((c) => c.tipo === 'despesa' && c.limite)
   const gastoPorCat = useMemo(() => somarPorCategoria(lancamentos), [lancamentos])
@@ -434,6 +454,13 @@ function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaP
           <p><span>{negocio ? 'Vendeu' : 'Entrou'}</span><strong className="tinta-azul">{dinheiro(totais.entrou)}</strong></p>
           <p><span>{negocio ? 'Gastou' : 'Saiu'}</span><strong className="tinta-vermelha">{dinheiro(totais.saiu)}</strong></p>
         </div>
+        {negocio && totais.rateio?.total > 0 && (
+          <p className="linha-guardado sem-toque">
+            <span>{totais.rateio.grupos.map((g) => `${g.nome} ${g.pct}%`).join(' + ')} da casa</span>
+            <strong className="tinta-vermelha">{dinheiro(totais.rateio.total)}</strong>
+          </p>
+        )}
+        {meta && lancamentos && <Meta meta={meta} irPara={irPara} />}
         {!negocio && totais.retiradas > 0 && (
           <p className="linha-guardado sem-toque">
             <span>🧁 {nomeNegocio} trouxe para casa</span>
@@ -505,6 +532,28 @@ function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaP
         )}
       </section>
     </>
+  )
+}
+
+function Meta({ meta, irPara }) {
+  return (
+    <button className="meta-negocio" onClick={() => irPara('relatorio')}>
+      <span className="meta-topo">
+        <span>Meta: {dinheiro(meta.meta)} de lucro</span>
+        <strong className={meta.bateu ? 'tinta-verde' : ''}>{Math.round(meta.pct)}%</strong>
+      </span>
+      <span className="trilho">
+        <span className={'preenchido ' + (meta.bateu ? 'azul' : 'caramelo')} style={{ width: meta.barra + '%' }} />
+      </span>
+      <span className="meta-rodape">
+        {meta.bateu
+          ? 'Meta batida! 🎉'
+          : meta.atual
+            ? `Faltam ${dinheiro(meta.falta)} · ${dinheiro(meta.porDia)} por dia nos ${meta.restam} ${meta.restam === 1 ? 'dia' : 'dias'} que restam`
+            : `Faltaram ${dinheiro(meta.falta)}`}
+      </span>
+      <span className="meta-link">Relatório e comparação entre meses ›</span>
+    </button>
   )
 }
 

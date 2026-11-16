@@ -64,6 +64,9 @@ export const apiReal = {
         .order('created_at', { ascending: false })
     )
   },
+  async intervalo(familiaId, ini, fim) {
+    return ok(await supabase.from('lancamentos').select('*').eq('familia_id', familiaId).gte('data', ini).lte('data', fim).order('data', { ascending: false }))
+  },
   async salvarLancamento(l) {
     const { id, ...campos } = l
     if (id) return ok(await supabase.from('lancamentos').update(campos).eq('id', id).select().single())
@@ -136,10 +139,13 @@ export const apiReal = {
   },
   // ---------- Vendas da noite ----------
   async noite(familiaId, data) {
-    const noite = ok(await supabase.from('noites').select('*').eq('familia_id', familiaId).eq('data', data).maybeSingle())
-    if (!noite) return { noite: null, pedidos: [] }
+    const [noite, anterior] = await Promise.all([
+      supabase.from('noites').select('*').eq('familia_id', familiaId).eq('data', data).maybeSingle().then(ok),
+      supabase.from('noites').select('data, sobrou').eq('familia_id', familiaId).lt('data', data).order('data', { ascending: false }).limit(1).maybeSingle().then(ok),
+    ])
+    if (!noite) return { noite: null, pedidos: [], anterior }
     const pedidos = ok(await supabase.from('pedidos').select('*').eq('noite_id', noite.id).order('created_at'))
-    return { noite, pedidos }
+    return { noite, pedidos, anterior }
   },
   async salvarNoite(n) {
     const { id, ...campos } = n
@@ -279,6 +285,24 @@ function semente() {
     n(4, 'despesa', 84, 'Embalagens', 'Potes', 'ela', bj),
     n(6, 'receita', 1530.8, 'Repasse iFood', 'Repasse semana 2', 'eu', bj),
   )
+  // Meses anteriores (para o relatório e a comparação entre meses)
+  const dia = (k, d) => mesesAtras(k).slice(0, 8) + String(d).padStart(2, '0')
+  const h = (k, d, tipo, valor, cat, desc, conta_id, escopo) => ({
+    id: uid(), familia_id: fam, tipo, valor, descricao: desc, data: dia(k, d), user_id: 'eu', conta_id, conta_destino_id: null, escopo,
+    categoria_id: escopo === 'negocio' ? cN(cat) : c(cat), created_at: new Date(Date.now() - k * 30 * 864e5).toISOString(),
+  })
+  ;[[1, 1.08], [2, 0.97], [3, 0.88], [4, 1.02], [5, 0.8]].forEach(([k, f]) => {
+    for (const d of [5, 12, 19, 26]) {
+      lancamentos.push(h(k, d, 'receita', +(1650 * f).toFixed(2), 'Repasse iFood', 'Repasse da semana', bj, 'negocio'))
+      lancamentos.push(h(k, d + 1, 'receita', +(780 * f).toFixed(2), 'Vendas diretas', 'Pizzaria da semana', bj, 'negocio'))
+    }
+    lancamentos.push(h(k, 3, 'despesa', +(2350 * f).toFixed(2), 'Insumos', 'Compras do mês', bj, 'negocio'))
+    lancamentos.push(h(k, 8, 'despesa', 340, 'Embalagens', 'Potes e kraft', bj, 'negocio'))
+    lancamentos.push(h(k, 28, 'despesa', +(520 * f).toFixed(2), 'Entregas', 'Taxas dos boys', bj, 'negocio'))
+    lancamentos.push(h(k, 10, 'despesa', 125, 'Casa', 'Botijão de gás', cx, 'casa'))
+    lancamentos.push(h(k, 20, 'despesa', 185, 'Contas', 'Luz', cx, 'casa'))
+  })
+  lancamentos.push({ ...l(2, 'despesa', 125, 'Casa', 'Botijão de gás', 'ela', esp), escopo: 'casa' })
   for (const x of lancamentos) x.escopo = x.escopo || 'casa'
   // Produção a partir dos cadastros reais da Benjoca
   const insumos = seedBenjoca.insumos.map(([nome, unidade, preco, atualizado_em, estoque]) => ({ id: uid(), familia_id: fam, nome, unidade, preco, atualizado_em, estoque, estoque_em: '2026-07-07' }))
@@ -451,6 +475,9 @@ export function criarApiDemo() {
         .filter((l) => l.data >= ini && l.data <= fim)
         .sort((a, b) => (b.data + b.created_at).localeCompare(a.data + a.created_at))
     },
+    async intervalo(_f, ini, fim) {
+      return db.lancamentos.filter((l) => l.data >= ini && l.data <= fim).sort((a, b) => b.data.localeCompare(a.data))
+    },
     async salvarLancamento(l) {
       if (l.id) {
         const i = db.lancamentos.findIndex((x) => x.id === l.id)
@@ -486,7 +513,9 @@ export function criarApiDemo() {
     },
     async noite(_f, data) {
       const noite = db.noites.find((n) => n.data === data) || null
-      return { noite: noite && { ...noite }, pedidos: noite ? db.pedidos.filter((p) => p.noite_id === noite.id).map((p) => ({ ...p })) : [] }
+      const ant = db.noites.filter((n) => n.data < data).sort((a, b) => b.data.localeCompare(a.data))[0]
+      const anterior = ant ? { data: ant.data, sobrou: { ...ant.sobrou } } : null
+      return { noite: noite && { ...noite }, pedidos: noite ? db.pedidos.filter((p) => p.noite_id === noite.id).map((p) => ({ ...p })) : [], anterior }
     },
     async salvarNoite(n) {
       let atual = n.id ? db.noites.find((x) => x.id === n.id) : db.noites.find((x) => x.data === n.data)

@@ -25,6 +25,7 @@ React 18 + Vite 5, Supabase JS v2, sem roteador (aba no `location.hash`). Fonte 
 - `src/Painel.jsx` — casca do app: troca Casa/Benjoca, abas, Início, Extrato, Categorias, Ajustes.
 - `src/Lancar.jsx` — folha de gasto/entrada/transferência (no negócio, "Retirada").
 - `src/Contas.jsx` (Carteira), `src/APagar.jsx` (contas fixas e dívidas), `src/Producao.jsx` (insumos, receitas, produtos).
+- `src/negocio.js` (lucro do negócio com divisão de luz/gás, meta, projeção de 28 dias, meses) e `src/Relatorio.jsx` (aba oculta `relatorio`, aberta pela meta no Início).
 - `src/vendas.js` (cardápio iFood, sabores, `contaNoite`, `acumulados`, `lancamentosDaNoite`, `CONFIG_PADRAO`) e `src/Vendas.jsx` (aba Vendas da noite).
 - `src/benjocaSeed.js` + `dados-benjoca/*.csv` — cadastros vindos do Meu Bolso.
 - RLS: tudo filtrado por `familia_id = minha_familia()`. Atalhos do iPhone usam RPCs `security definer` com `p_token` (= `membros.token_atalho`): `lancar_rapido`, `listar_categorias`, `listar_contas`, `avisos_vencimento`.
@@ -60,13 +61,21 @@ Decisões do Julio (15/11/2026):
    - Saldos acumulados: saldo dos boys (reserva − taxas) e "a buscar na pizzaria" (seu − pegou − buscas), com valores iniciais nos ajustes.
    - **Falta da etapa 3:** importar pedidos por print/foto (precisa de uma API de visão com chave — não há backend; avaliar Edge Function do Supabase);
      editar o cardápio/combos pelo app (hoje fica em `CARDAPIO` no código); custo/lucro por noite usando a Produção.
+   - "Veio da noite anterior": ao abrir uma noite nova (sem "levou"), o app preenche "levou" com o "sobrou" da noite anterior
+     e mostra "veio X + fez Y" em cada sabor (pedido do Julio, 15/11/2026).
    Plano original:
    - Durante a correria, anotar só o nome do cliente; no fim da noite o app pergunta quem falta completar.
    - Importar pedidos do iFood por print da tela ou foto da comanda impressa (OCR/visão). Nível 3 futuro: API do iFood (exige parceiro com CNPJ/MEI; não verificado).
    - Fechamento: levou − vendido iFood − sobrou = vendido na pizzaria; comparar com o dinheiro recebido em mão.
    - Conferência combos × sabores; taxas dos motoboys (R$ 4, 6, 7 e 8 por entrega) somadas para pagar.
    - Papel dele hoje: esquerda = combos do iFood; meio = potes por sabor (N=ninho, C=chocolate, M=maracujá…); direita = brownies por sabor; embaixo = taxas de motoboy. Contagem em quadradinhos: □=4, ☒=5, L=2, |=1.
-4. Painel do negócio: meta mensal, relatório, comparação entre meses (corrigindo os bugs do Meu Bolso: meta %, projeção inflada, alertas duplicados).
+4. Painel do negócio — **feita em 15/11/2026** (sem SQL novo; usa `familias.negocio_config` do 05):
+   - Lucro do negócio = receitas − despesas do negócio − **divisão da casa** (gás 70%, luz 30%): gastos da casa cuja categoria ou descrição
+     tenha as palavras configuradas. O caderno da casa não muda. Config: `metaLucro` (10.000), `rateios` [{nome, pct, termos}].
+   - Início do negócio: linha da divisão, cartão da meta (% certo, quanto falta e por dia) → Relatório.
+   - Relatório: vendas/gastos por categoria, contas de luz/gás que entraram, projeção (lucro do mês + média dos últimos 28 dias × dias restantes),
+     noites fechadas do mês, últimos 6 meses com % da meta e variação (o mês em andamento não é comparado).
+   - Falta: alertas (o Meu Bolso duplicava; aqui só existem os de vencimento, sem duplicar).
 5. Estoque calculado pelas vendas, lista de compras, avisos de estoque baixo.
 6. Resumo de 12 meses.
    - Pendências do bloco 5: importar o histórico do Meu Bolso (pedir export/CSV ao Julio); dividir gás (70% Benjoca) e luz (30% Benjoca).

@@ -20,12 +20,18 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
   const [folha, setFolha] = useState(null) // 'busca' | 'ajustes'
   const [fechando, setFechando] = useState(false)
   const [novoNome, setNovoNome] = useState('')
+  const [anterior, setAnterior] = useState(null) // { data, sobrou } da noite anterior
 
   // ---------- Carregar ----------
   const carregarNoite = useCallback(async () => {
     try {
       const r = await api.noite(familia.id, data)
-      setNoite(r.noite || { familia_id: familia.id, data, levou: {}, sobrou: {}, taxas: [], pegou: 0, fechada: false })
+      const n = r.noite || { familia_id: familia.id, data, levou: {}, sobrou: {}, taxas: [], pegou: 0, fechada: false }
+      // O que sobrou na noite anterior já começa marcado em "O que levou" (só falta somar o que fez no dia)
+      const veio = r.anterior?.sobrou && Object.keys(r.anterior.sobrou).length ? r.anterior : null
+      if (veio && !n.fechada && !Object.keys(n.levou || {}).length) n.levou = { ...veio.sobrou }
+      setAnterior(veio)
+      setNoite(n)
       setPedidos(r.pedidos)
     } catch (e) {
       aviso(textoErro(e))
@@ -190,7 +196,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
 
   async function salvarAjustes(novo) {
     try {
-      await api.salvarConfigNegocio(familia.id, novo)
+      await api.salvarConfigNegocio(familia.id, { ...(familia.negocio_config || {}), ...novo })
       await recarregarBase()
       setFolha(null)
       aviso('Ajustes das vendas salvos')
@@ -236,7 +242,12 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
           )}
 
           <Bloco n="1" titulo="O que levou" total={`${conta.levou} un.`}>
-            <Contadores valores={noite.levou} bloqueado={fechada} aoMudar={(levou) => mudarNoite({ levou })} />
+            {anterior && !fechada && (
+              <p className="nota veio-nota">
+                Já começa com o que sobrou na noite de {dataCurta(anterior.data).slice(0, 5)} ({Object.values(anterior.sobrou).reduce((s, v) => s + +v, 0)} un., marcado como “veio”). Toque no + para somar o que fez hoje.
+              </p>
+            )}
+            <Contadores valores={noite.levou} base={fechada ? null : anterior?.sobrou} bloqueado={fechada} aoMudar={(levou) => mudarNoite({ levou })} />
           </Bloco>
 
           <Bloco n="2" titulo="Pedidos do iFood" total={pedidos.length ? `${pedidos.length} · ${dinheiro(conta.ifood.valor)}` : ''}>
@@ -412,7 +423,7 @@ function Bloco({ n, titulo, total, children }) {
 
 // ---------------- Contadores por sabor ----------------
 
-function Contadores({ valores = {}, bloqueado, aoMudar, mostrar }) {
+function Contadores({ valores = {}, bloqueado, aoMudar, mostrar, base }) {
   const grupos = [['Potes', POTES], ['Brownies', BROWNIES]]
   const mudar = (id, v) => {
     const novo = { ...valores }
@@ -429,7 +440,7 @@ function Contadores({ valores = {}, bloqueado, aoMudar, mostrar }) {
           <div key={nome} className="grupo-contador">
             <p className="rotulo-grupo-contador">{nome}</p>
             {itens.map((s) => (
-              <Contador key={s.id} rotulo={s.nome} letra={s.letra} valor={+valores[s.id] || 0} bloqueado={bloqueado} aoMudar={(v) => mudar(s.id, v)} />
+              <Contador key={s.id} rotulo={s.nome} letra={s.letra} valor={+valores[s.id] || 0} veio={+base?.[s.id] || 0} bloqueado={bloqueado} aoMudar={(v) => mudar(s.id, v)} />
             ))}
           </div>
         )
@@ -438,11 +449,14 @@ function Contadores({ valores = {}, bloqueado, aoMudar, mostrar }) {
   )
 }
 
-function Contador({ rotulo, letra, valor, bloqueado, aoMudar }) {
+function Contador({ rotulo, letra, valor, veio = 0, bloqueado, aoMudar }) {
   return (
     <div className={'contador' + (valor ? ' com-valor' : '')}>
       <span className="letra" aria-hidden="true">{letra}</span>
-      <span className="nome-contador">{rotulo}</span>
+      <span className="nome-contador">
+        {rotulo}
+        {veio > 0 && <small className="veio">veio {veio}{valor > veio ? ` + fez ${valor - veio}` : ''}</small>}
+      </span>
       <button type="button" className="mais-menos" disabled={bloqueado || !valor} aria-label={`Menos ${rotulo}`} onClick={() => aoMudar(valor - 1)}>−</button>
       <input
         type="text"
