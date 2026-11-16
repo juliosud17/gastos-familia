@@ -75,7 +75,15 @@ Decisões do Julio (15/11/2026):
   - **Reserva dos boys**: o preço "real" do pote é R$ 17; no iFood é 19,99 → sobra 2,99; tirando 15,5% fica **R$ 2,52 por pote pago**
     vendido no iFood, que vai para pagar as taxas dos motoboys. Potes grátis dos combos não contam (3+1 → 3; 2 potes+1 brownie → 2).
     Brownies não entram na reserva. Ideia para o fechamento: mostrar reserva × taxas pagas na noite (sobrou/faltou).
-- Bloco 4: noite na pizzaria (preços lá, de que dependem as taxas 4/6/7/8, o que significam "107" e "21" no papel, se ele paga algo à pizzaria do irmão).
+- Bloco 4: noite na pizzaria — **recebido em 15/11/2026**:
+  - Preço na pizzaria: **pote R$ 16, brownie R$ 10**. Valor "real" dele: pote 14, brownie 8 (= preço de venda direta da Produção).
+    **R$ 2 por unidade vendida na pizzaria** (pote ou brownie) vai para a reserva dos boys, junto com os 2,52/pote pago do iFood.
+  - "107" e "21" no papel = pedidos do iFood **pagos na entrega direto ao motoboy** (dinheiro/cartão), não pelo app.
+  - Não paga nada ao irmão. Taxas 4–8 dependem do bairro.
+  - Conta da noite (interpretação, **a confirmar com ele** com exemplo):
+    em mão = vendas pizzaria + iFood pago na entrega; reserva = 2,52 × potes pagos iFood + 2 × unidades pizzaria;
+    dele = em mão − reserva; **banco de saldo dos boys** += reserva − taxas pagas (acumula, um dia compensa o outro, pode ficar negativo);
+    da parte dele, pega R$ 50 ou 100 em dinheiro na hora e o resto fica guardado para buscar na **segunda seguinte** (saldo "a buscar").
 - Bloco 5: decisões — histórico do Meu Bolso entra ou não, meta (R$ 10.000/mês?), divisão de luz/gás entre casa e negócio (%).
 - Ele avisou que os preços do iFood são um pouco maiores que os da pizzaria, para cobrir a taxa.
 
