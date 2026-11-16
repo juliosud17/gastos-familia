@@ -69,10 +69,12 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
     const n = atual.current // retrato de agora (a tela pode trocar de noite antes de gravar)
     if (!n) return salvando.current
     const { familia_id, data: d, levou, sobrou, taxas, pegou } = n
+    // sobrou_casa só vai junto quando existe (antes do SQL 07 a coluna não existe)
+    const extra = 'sobrou_casa' in n ? { sobrou_casa: n.sobrou_casa || {} } : {}
     salvando.current = salvando.current.then(async () => {
       try {
         const id = n.id || (atual.current?.data === d ? atual.current.id : undefined)
-        const salvo = await api.salvarNoite({ ...(id ? { id } : {}), familia_id, data: d, levou, sobrou, taxas, pegou })
+        const salvo = await api.salvarNoite({ ...(id ? { id } : {}), familia_id, data: d, levou, sobrou, taxas, pegou, ...extra })
         setNoite((x) => (x && x.data === salvo.data && !x.id ? { ...x, id: salvo.id } : x))
         return salvo
       } catch (e) {
@@ -249,10 +251,12 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
           <Bloco n="1" titulo="O que levou" total={`${conta.levou} un.`}>
             {anterior && !fechada && (
               <p className="nota veio-nota">
-                Já começa com o que sobrou na noite de {dataCurta(anterior.data).slice(0, 5)} ({Object.values(anterior.sobrou).reduce((s, v) => s + +v, 0)} un., marcado como “veio”). Toque no + para somar o que fez hoje.
+                Já começa com o que sobrou na noite de {dataCurta(anterior.data).slice(0, 5)}: {somaUn(anterior.sobrou)} un.
+                {somaUn(anterior.sobrou_casa) > 0 && ` (${somaUn(anterior.sobrou) - somaUn(anterior.sobrou_casa)} ficaram na pizzaria e ${somaUn(anterior.sobrou_casa)} em casa)`}
+                , marcado como “veio”. Toque no + para somar o que fez hoje.
               </p>
             )}
-            <Contadores valores={noite.levou} base={fechada ? null : anterior?.sobrou} bloqueado={fechada} aoMudar={(levou) => mudarNoite({ levou })} />
+            <Contadores valores={noite.levou} base={fechada ? null : anterior?.sobrou} baseCasa={fechada ? null : anterior?.sobrou_casa} bloqueado={fechada} aoMudar={(levou) => mudarNoite({ levou })} />
           </Bloco>
 
           <Bloco n="2" titulo="Pedidos do iFood" total={pedidos.length ? `${pedidos.length} · ${dinheiro(conta.ifood.valor)}` : ''}>
@@ -329,7 +333,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
           </Bloco>
 
           <Bloco n="4" titulo="O que sobrou" total={`${conta.sobrou} un.`}>
-            <Contadores valores={noite.sobrou} bloqueado={fechada} aoMudar={(sobrou) => mudarNoite({ sobrou })} />
+            <Sobrou noite={noite} bloqueado={fechada} aoMudar={mudarNoite} />
           </Bloco>
 
           <Bloco n="5" titulo="Fechamento">
@@ -412,6 +416,42 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
   )
 }
 
+const somaUn = (o) => Object.values(o || {}).reduce((s, v) => s + (+v || 0), 0)
+
+// O que sobrou, separado: o que ficou na pizzaria e o que foi para casa. O total (soma) é o "sobrou" de sempre.
+function Sobrou({ noite, bloqueado, aoMudar }) {
+  const [onde, setOnde] = useState('pizzaria')
+  const total = noite.sobrou || {}
+  const casa = noite.sobrou_casa || {}
+  const pizzaria = {}
+  for (const [s, q] of Object.entries(total)) {
+    const p = (+q || 0) - (+casa[s] || 0)
+    if (p > 0) pizzaria[s] = p
+  }
+  const juntar = (p, c) => {
+    const t = {}
+    for (const k of new Set([...Object.keys(p), ...Object.keys(c)])) {
+      const n = (+p[k] || 0) + (+c[k] || 0)
+      if (n > 0) t[k] = n
+    }
+    return t
+  }
+  return (
+    <>
+      <div className="segmento">
+        <button aria-pressed={onde === 'pizzaria'} onClick={() => setOnde('pizzaria')}>🍕 Ficou na pizzaria ({somaUn(pizzaria)})</button>
+        <button aria-pressed={onde === 'casa'} onClick={() => setOnde('casa')}>🏠 Levou para casa ({somaUn(casa)})</button>
+      </div>
+      {onde === 'pizzaria' ? (
+        <Contadores key="p" valores={pizzaria} bloqueado={bloqueado} aoMudar={(p) => aoMudar({ sobrou: juntar(p, casa), sobrou_casa: casa })} />
+      ) : (
+        <Contadores key="c" valores={casa} bloqueado={bloqueado} aoMudar={(c) => aoMudar({ sobrou: juntar(pizzaria, c), sobrou_casa: c })} />
+      )}
+      <p className="nota">As duas partes somadas viram o “veio” da próxima noite.</p>
+    </>
+  )
+}
+
 const nomeSabor = (s) => `${SABOR[s]?.tipo === 'pote' ? 'pote' : 'brownie'} ${SABOR[s]?.nome || s}`
 
 function Bloco({ n, titulo, total, children }) {
@@ -428,7 +468,7 @@ function Bloco({ n, titulo, total, children }) {
 
 // ---------------- Contadores por sabor ----------------
 
-function Contadores({ valores = {}, bloqueado, aoMudar, mostrar, base }) {
+function Contadores({ valores = {}, bloqueado, aoMudar, mostrar, base, baseCasa }) {
   const grupos = [['Potes', POTES], ['Brownies', BROWNIES]]
   const mudar = (id, v) => {
     const novo = { ...valores }
@@ -445,7 +485,7 @@ function Contadores({ valores = {}, bloqueado, aoMudar, mostrar, base }) {
           <div key={nome} className="grupo-contador">
             <p className="rotulo-grupo-contador">{nome}</p>
             {itens.map((s) => (
-              <Contador key={s.id} rotulo={s.nome} letra={s.letra} valor={+valores[s.id] || 0} veio={+base?.[s.id] || 0} bloqueado={bloqueado} aoMudar={(v) => mudar(s.id, v)} />
+              <Contador key={s.id} rotulo={s.nome} letra={s.letra} valor={+valores[s.id] || 0} veio={+base?.[s.id] || 0} veioCasa={+baseCasa?.[s.id] || 0} bloqueado={bloqueado} aoMudar={(v) => mudar(s.id, v)} />
             ))}
           </div>
         )
@@ -454,13 +494,19 @@ function Contadores({ valores = {}, bloqueado, aoMudar, mostrar, base }) {
   )
 }
 
-function Contador({ rotulo, letra, valor, veio = 0, bloqueado, aoMudar }) {
+function Contador({ rotulo, letra, valor, veio = 0, veioCasa = 0, bloqueado, aoMudar }) {
   return (
     <div className={'contador' + (valor ? ' com-valor' : '')}>
       <span className="letra" aria-hidden="true">{letra}</span>
       <span className="nome-contador">
         {rotulo}
-        {veio > 0 && <small className="veio">veio {veio}{valor > veio ? ` + fez ${valor - veio}` : ''}</small>}
+        {veio > 0 && (
+          <small className="veio">
+            veio {veio}
+            {veioCasa > 0 && ` (${veioCasa} de casa)`}
+            {valor > veio ? ` + fez ${valor - veio}` : ''}
+          </small>
+        )}
       </span>
       <button type="button" className="mais-menos" disabled={bloqueado || !valor} aria-label={`Menos ${rotulo}`} onClick={() => aoMudar(valor - 1)}>−</button>
       <input

@@ -13,7 +13,7 @@ Ele está migrando a gestão da Benjoca do app "Meu Bolso" (Lovable, antunesdesp
 - Supabase: projeto `gastos-familia-dados` (ref `ghbaeaxcvbnlctaqwiyh`). URL e chave pública ficam em `src/lib.js`.
   SQL Editor direto: https://supabase.com/dashboard/project/ghbaeaxcvbnlctaqwiyh/sql/new
 - Migrações ficam em `supabase/` e o **Julio roda à mão** no SQL Editor, em ordem: `schema.sql`, `02-contas.sql`, `03-a-pagar.sql`, `04-benjoca.sql` (todas já rodadas em 15/11/2026),
-  `05-vendas.sql` e `06-estoque.sql` (rodados em 15/11/2026).
+  `05-vendas.sql` e `06-estoque.sql` (rodados em 15/11/2026), `07-sobrou-casa.sql` (criado em 15/11/2026 — **confirmar se ele rodou**).
   Toda migração nova deve ser idempotente (`if not exists`, `create or replace`) e não apagar dados. Mande para ele o link do arquivo no GitHub + o link do SQL Editor.
 
 ## Stack e arquivos
@@ -64,6 +64,9 @@ Decisões do Julio (15/11/2026):
      editar o cardápio/combos pelo app (hoje fica em `CARDAPIO` no código); custo/lucro por noite usando a Produção.
    - "Veio da noite anterior": ao abrir uma noite nova (sem "levou"), o app preenche "levou" com o "sobrou" da noite anterior
      e mostra "veio X + fez Y" em cada sabor (pedido do Julio, 15/11/2026).
+   - **Sobrou separado** (pedido do Julio, 15/11/2026): `noites.sobrou_casa` (SQL 07) = parte do que sobrou que foi para casa; `sobrou` continua
+     sendo o total (todo o resto do app usa só ele). Passo 4 tem abas "Ficou na pizzaria" / "Levou para casa"; o "veio" da noite seguinte mostra
+     quanto veio de casa. O app só manda `sobrou_casa` ao salvar quando a noite já tem esse campo (não quebra antes do SQL 07).
    Plano original:
    - Durante a correria, anotar só o nome do cliente; no fim da noite o app pergunta quem falta completar.
    - Importar pedidos do iFood por print da tela ou foto da comanda impressa (OCR/visão). Nível 3 futuro: API do iFood (exige parceiro com CNPJ/MEI; não verificado).

@@ -157,7 +157,7 @@ export const apiReal = {
   async noite(familiaId, data) {
     const [noite, anterior] = await Promise.all([
       supabase.from('noites').select('*').eq('familia_id', familiaId).eq('data', data).maybeSingle().then(ok),
-      supabase.from('noites').select('data, sobrou').eq('familia_id', familiaId).lt('data', data).order('data', { ascending: false }).limit(1).maybeSingle().then(ok),
+      supabase.from('noites').select('*').eq('familia_id', familiaId).lt('data', data).order('data', { ascending: false }).limit(1).maybeSingle().then(ok),
     ])
     if (!noite) return { noite: null, pedidos: [], anterior }
     const pedidos = ok(await supabase.from('pedidos').select('*').eq('noite_id', noite.id).order('created_at'))
@@ -372,7 +372,7 @@ function semente() {
   ]
   for (const e of exemplos) {
     const id = uid()
-    const noite = { id, familia_id: fam, data: somarDias(hojeN, -e.d), levou: e.levou, sobrou: { 'pote-maracuja': 1, 'brownie-doce-de-leite': 2 }, taxas: [6], pegou: e.pegou, fechada: true }
+    const noite = { id, familia_id: fam, data: somarDias(hojeN, -e.d), levou: e.levou, sobrou: { 'pote-maracuja': 1, 'brownie-doce-de-leite': 2 }, sobrou_casa: { 'brownie-doce-de-leite': 1 }, taxas: [6], pegou: e.pegou, fechada: true }
     ped(id, 'Carla', [L('combo-3p1', { 'pote-ninho': 2, 'pote-chocolate': 1, 'pote-maracuja': 1 })], 6)
     ped(id, 'Rafael', [L('combo-2p1b', { 'pote-ninho': 1, 'pote-chocolate': 1, 'brownie-ovomaltine': 1 })], 7, 41.98)
     ped(id, 'Dona Célia', [L('combo-3b1', { 'brownie-brigadeiro': 2, 'brownie-ninho': 2 })], 4)
@@ -545,7 +545,7 @@ export function criarApiDemo() {
     async noite(_f, data) {
       const noite = db.noites.find((n) => n.data === data) || null
       const ant = db.noites.filter((n) => n.data < data).sort((a, b) => b.data.localeCompare(a.data))[0]
-      const anterior = ant ? { data: ant.data, sobrou: { ...ant.sobrou } } : null
+      const anterior = ant ? { data: ant.data, sobrou: { ...ant.sobrou }, sobrou_casa: { ...(ant.sobrou_casa || {}) } } : null
       return { noite: noite && { ...noite }, pedidos: noite ? db.pedidos.filter((p) => p.noite_id === noite.id).map((p) => ({ ...p })) : [], anterior }
     },
     async salvarNoite(n) {

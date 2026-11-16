@@ -2053,3 +2053,14 @@ body:has(.modo-negocio) {
 .nota-resumo {
   margin-top: 6px;
 }
+
+.bloco-noite .segmento {
+  margin-bottom: 6px;
+}
+
+.bloco-noite .segmento button {
+  font-size: 13.5px;
+  height: auto;
+  min-height: 38px;
+  padding: 4px 6px;
+}
