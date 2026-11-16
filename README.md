@@ -20,7 +20,8 @@ Quer ver antes de configurar? Abra o app com `?demo` no fim do endereço.
 1. Crie uma conta em [supabase.com](https://supabase.com) e um projeto novo (região São Paulo).
 2. No projeto, abra **SQL Editor → New query**, cole todo o conteúdo de [`supabase/schema.sql`](supabase/schema.sql) e clique em **Run**.
    Depois faça o mesmo, nesta ordem, com [`supabase/02-contas.sql`](supabase/02-contas.sql) (contas e transferências)
-   e [`supabase/03-a-pagar.sql`](supabase/03-a-pagar.sql) (contas a pagar e avisos).
+   [`supabase/03-a-pagar.sql`](supabase/03-a-pagar.sql) (contas a pagar e avisos)
+   e [`supabase/04-benjoca.sql`](supabase/04-benjoca.sql) (caderno do negócio e produção).
 3. Em **Project Settings → API**, anote:
    - **Project URL** (ex.: `https://abcd1234.supabase.co`)
    - **Publishable key** (chave pública; pode ficar no app sem problema, a segurança vem das regras do banco)
