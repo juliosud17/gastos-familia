@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { dinheiro, numero, textoErro, MESES, limitesMes, lerNumero, dataCurta } from './lib.js'
 import Folha from './Folha.jsx'
-import { numerosNegocio, situacaoMeta, projecao, ultimosMeses, separarPorMes, vinteOitoDias } from './negocio.js'
+import { numerosNegocio, situacaoMeta, projecao, ultimosMeses, separarPorMes, vinteOitoDias, lerHistorico, comHistorico, primeiroMesHistorico } from './negocio.js'
 
 const MESES_CURTOS = MESES.map((m) => m.slice(0, 3))
 
@@ -10,7 +10,16 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
   const [noites, setNoites] = useState([])
   const [ajustes, setAjustes] = useState(false)
   const [verRateio, setVerRateio] = useState(false)
-  const [nMeses, setNMeses] = useState(6)
+  const [escolhaMeses, setEscolhaMeses] = useState(6) // 6 | 12 | 'tudo'
+  const [importar, setImportar] = useState(false)
+  const historico = cfg.historico || {}
+  const primeiro = primeiroMesHistorico(historico)
+  const nMeses =
+    escolhaMeses === 'tudo'
+      ? primeiro
+        ? Math.max(1, (periodo.ano - primeiro.ano) * 12 + periodo.mes - primeiro.mes + 1)
+        : 12
+      : escolhaMeses
 
   const meses = useMemo(() => ultimosMeses(periodo.ano, periodo.mes, nMeses), [periodo.ano, periodo.mes, nMeses])
 
@@ -43,19 +52,20 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
 
   const comparacao = useMemo(() => {
     if (!faixa) return null
-    return separarPorMes(faixa, meses).map((m) => ({ ...m, ...numerosNegocio(m.lancamentos, contaPorId, catPorId, cfg) }))
+    return comHistorico(separarPorMes(faixa, meses).map((m) => ({ ...m, ...numerosNegocio(m.lancamentos, contaPorId, catPorId, cfg) })), cfg.historico)
   }, [faixa, meses, contaPorId, catPorId, cfg])
+  const doMes = historico[`${periodo.ano}-${String(periodo.mes + 1).padStart(2, '0')}`]
 
   const [ini, fim] = limitesMes(periodo.ano, periodo.mes)
   const noitesMes = noites.filter((x) => x.fechada && x.resumo && x.data >= ini && x.data <= fim)
   const somaNoites = (f) => noitesMes.reduce((s, x) => s + (+f(x.resumo) || 0), 0)
 
-  async function salvarAjustes(novo) {
+  async function salvarAjustes(novo, msg = 'Meta e divisão salvas') {
     try {
       await api.salvarConfigNegocio(familia.id, { ...(familia.negocio_config || {}), ...novo })
       await recarregarBase()
       setAjustes(false)
-      aviso('Meta e divisão salvas')
+      aviso(msg)
     } catch (e) {
       aviso(textoErro(e))
     }
@@ -66,7 +76,12 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
 
   return (
     <div className="relatorio">
-      <h2 className="titulo-relatorio">Relatório de {MESES[periodo.mes]}</h2>
+      <h2 className="titulo-relatorio">Relatório de {MESES[periodo.mes]}{periodo.ano !== new Date().getFullYear() ? ` de ${periodo.ano}` : ''}</h2>
+      {doMes && !n.vendeu && !n.gastou && (
+        <p className="aviso ok">
+          Este mês não tem anotações na Caderneta. Pelo Meu Bolso, o lucro foi {doMes.lucro === null ? 'não anotado' : dinheiro(doMes.lucro)}.
+        </p>
+      )}
 
       <section className="pagina-pautada fechamento">
         <p className="rotulo-grupo">Vendas</p>
@@ -150,10 +165,10 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
 
       <section className="bloco">
         <div className="cabeca-bloco">
-          <h2>Últimos {nMeses} meses</h2>
+          <h2>{escolhaMeses === 'tudo' ? 'Desde o começo' : `Últimos ${nMeses} meses`}</h2>
           <div className="segmento segmento-pequeno">
-            {[6, 12].map((k) => (
-              <button key={k} aria-pressed={nMeses === k} onClick={() => setNMeses(k)}>{k}</button>
+            {[6, 12, 'tudo'].map((k) => (
+              <button key={k} aria-pressed={escolhaMeses === k} onClick={() => setEscolhaMeses(k)}>{k === 'tudo' ? 'Tudo' : k}</button>
             ))}
           </div>
         </div>
@@ -167,9 +182,23 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
         )}
       </section>
 
+      <button className="link ajustes-vendas" onClick={() => setImportar(true)}>
+        📥 {Object.keys(historico).length ? `Histórico do Meu Bolso (${Object.keys(historico).length} meses)` : 'Trazer o histórico do Meu Bolso'}
+      </button>
       <button className="link ajustes-vendas" onClick={() => setAjustes(true)}>⚙️ Meta e divisão da luz e do gás</button>
 
       {ajustes && <AjustesMeta cfg={cfg} aoSalvar={salvarAjustes} aoFechar={() => setAjustes(false)} />}
+      {importar && (
+        <ImportarHistorico
+          historico={historico}
+          aoSalvar={async (h) => {
+            await salvarAjustes({ historico: h }, Object.keys(h).length ? 'Histórico guardado' : 'Histórico apagado')
+            setImportar(false)
+            setEscolhaMeses('tudo')
+          }}
+          aoFechar={() => setImportar(false)}
+        />
+      )}
     </div>
   )
 }
@@ -178,16 +207,22 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
 function ResumoPeriodo({ meses, meta }) {
   const hoje = new Date()
   const fechados = meses.filter((m) => !(m.ano === hoje.getFullYear() && m.mes === hoje.getMonth()))
-  const comDados = fechados.filter((m) => m.vendeu || m.gastou)
-  const soma = (k) => meses.reduce((s, m) => s + (k === 'gastou' ? m.gastou + m.rateio.total : m[k]), 0)
+  const temLucro = (m) => (m.doMeuBolso ? m.lucro !== null && m.lucro !== undefined : m.vendeu || m.gastou)
+  const comDados = fechados.filter(temLucro)
+  const daCaderneta = meses.filter((m) => !m.doMeuBolso)
+  const antigos = meses.filter((m) => m.doMeuBolso).length
+  const soma = (k) =>
+    k === 'lucro'
+      ? meses.reduce((s, m) => s + (+m.lucro || 0), 0)
+      : daCaderneta.reduce((s, m) => s + (k === 'gastou' ? m.gastou + m.rateio.total : m[k]), 0)
   const media = comDados.length ? comDados.reduce((s, m) => s + m.lucro, 0) / comDados.length : null
   const melhor = comDados.reduce((b, m) => (!b || m.lucro > b.lucro ? m : b), null)
   const bateu = meta ? comDados.filter((m) => m.lucro >= meta).length : 0
   return (
     <div className="fechamento pagina-pautada resumo-periodo">
-      <p className="linha-conta"><span>Vendeu</span><strong className="tinta-verde">{dinheiro(soma('vendeu'))}</strong></p>
-      <p className="linha-conta"><span>Gastou<small>com a parte da luz e do gás</small></span><strong className="tinta-vermelha">{dinheiro(soma('gastou'))}</strong></p>
-      <p className="linha-conta soma"><span>Lucro no período</span><strong>{dinheiro(soma('lucro'))}</strong></p>
+      <p className="linha-conta"><span>Vendeu{antigos > 0 && <small>só dos meses anotados na Caderneta</small>}</span><strong className="tinta-verde">{dinheiro(soma('vendeu'))}</strong></p>
+      <p className="linha-conta"><span>Gastou<small>com a parte da luz e do gás{antigos > 0 && ', só da Caderneta'}</small></span><strong className="tinta-vermelha">{dinheiro(soma('gastou'))}</strong></p>
+      <p className="linha-conta soma"><span>Lucro no período{antigos > 0 && <small>{antigos} {antigos === 1 ? 'mês' : 'meses'} pelo Meu Bolso</small>}</span><strong>{dinheiro(soma('lucro'))}</strong></p>
       {media !== null && (
         <p className="linha-conta"><span>Média por mês<small>{comDados.length} {comDados.length === 1 ? 'mês fechado' : 'meses fechados'} com anotações</small></span><strong>{dinheiro(media)}</strong></p>
       )}
@@ -198,7 +233,7 @@ function ResumoPeriodo({ meses, meta }) {
 }
 
 function Comparacao({ meses, meta }) {
-  const maior = Math.max(meta, ...meses.map((m) => Math.abs(m.lucro)), 1)
+  const maior = Math.max(meta, ...meses.map((m) => Math.abs(+m.lucro || 0)), 1)
   return (
     <ul className="barras comparacao">
       {[...meses].reverse().map((m, i, lista) => {
@@ -206,22 +241,27 @@ function Comparacao({ meses, meta }) {
         const hoje = new Date()
         const emAndamento = m.ano === hoje.getFullYear() && m.mes === hoje.getMonth()
         // Mês que ainda não acabou não é comparado (daria uma queda falsa)
-        const dif = !emAndamento && ant && ant.lucro ? ((m.lucro - ant.lucro) / Math.abs(ant.lucro)) * 100 : null
+        const semLucro = m.lucro === null || m.lucro === undefined
+        const dif = !emAndamento && !semLucro && ant && ant.lucro ? ((m.lucro - ant.lucro) / Math.abs(ant.lucro)) * 100 : null
         return (
           <li key={`${m.ano}-${m.mes}`}>
             <div className="barra-item sem-toque">
               <span className="barra-topo">
                 <span>{MESES_CURTOS[m.mes]}{m.ano !== new Date().getFullYear() ? ` ${m.ano}` : ''}{emAndamento && <small className="nota"> até hoje</small>}</span>
-                <span className={m.lucro < 0 ? 'tinta-vermelha' : ''}>{dinheiro(m.lucro)}</span>
+                <span className={m.lucro < 0 ? 'tinta-vermelha' : ''}>{semLucro ? '—' : dinheiro(m.lucro)}</span>
               </span>
               <span className="trilho">
-                <span className={'preenchido ' + (m.lucro < 0 ? 'vermelho' : meta && m.lucro >= meta ? 'azul' : 'caramelo')} style={{ width: (Math.abs(m.lucro) / maior) * 100 + '%' }} />
+                <span className={'preenchido ' + (m.lucro < 0 ? 'vermelho' : meta && m.lucro >= meta ? 'azul' : 'caramelo') + (m.doMeuBolso ? ' antigo' : '')} style={{ width: (Math.abs(+m.lucro || 0) / maior) * 100 + '%' }} />
                 {meta > 0 && <span className="marca-limite marca-meta" style={{ left: (meta / maior) * 100 + '%' }} />}
               </span>
               <span className="barra-rodape">
-                <span>vendeu {dinheiro(m.vendeu)} · gastou {dinheiro(m.gastou + m.rateio.total)}</span>
                 <span>
-                  {meta > 0 && `${Math.round((m.lucro / meta) * 100)}% da meta`}
+                  {m.doMeuBolso
+                    ? `pelo Meu Bolso${m.receitasMeuBolso ? ` · receitas ${dinheiro(m.receitasMeuBolso)}` : ''}${semLucro ? ' · lucro não anotado' : ''}`
+                    : `vendeu ${dinheiro(m.vendeu)} · gastou ${dinheiro(m.gastou + m.rateio.total)}`}
+                </span>
+                <span>
+                  {meta > 0 && !semLucro && `${Math.round((m.lucro / meta) * 100)}% da meta`}
                   {dif !== null && <b className={dif < 0 ? 'tinta-vermelha' : 'tinta-verde'}> {dif >= 0 ? '▲' : '▼'} {Math.abs(Math.round(dif))}%</b>}
                 </span>
               </span>
@@ -230,6 +270,50 @@ function Comparacao({ meses, meta }) {
         )
       })}
     </ul>
+  )
+}
+
+function ImportarHistorico({ historico, aoSalvar, aoFechar }) {
+  const [texto, setTexto] = useState('')
+  const lido = useMemo(() => lerHistorico(texto), [texto])
+  const chaves = Object.keys(lido).sort()
+  const comLucro = chaves.filter((k) => lido[k].lucro !== null)
+  const nome = (k) => `${MESES_CURTOS[+k.slice(5) - 1]}/${k.slice(0, 4)}`
+  const [apagar, setApagar] = useState(false)
+  return (
+    <Folha titulo="Histórico do Meu Bolso" aoFechar={aoFechar} classe="folha-negocio">
+      <form
+        className="formulario"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (chaves.length) aoSalvar({ ...historico, ...lido })
+        }}
+      >
+        <p className="nota">
+          No Meu Bolso, copie a tabela “Resumo por Mês” inteira e cole aqui. O app guarda o lucro de cada mês e usa nos meses que não têm anotações na Caderneta.
+          Fica só no seu banco de dados.
+        </p>
+        <label className="campo">
+          <span>Cole a tabela</span>
+          <textarea rows={7} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={'Mai 2024\tR$ 0,00\tR$ 0,00\tR$ 0,00\tR$ 2.348,00\n…'} />
+        </label>
+        {chaves.length > 0 && (
+          <p className="aviso ok">
+            Li {chaves.length} meses, de {nome(chaves[0])} a {nome(chaves[chaves.length - 1])}. {comLucro.length} com lucro
+            {chaves.length > comLucro.length && ` (sem lucro: ${chaves.filter((k) => lido[k].lucro === null).map(nome).join(', ')})`}.
+          </p>
+        )}
+        <button className="botao principal" disabled={!chaves.length}>Guardar histórico</button>
+        {Object.keys(historico).length > 0 &&
+          (apagar ? (
+            <button type="button" className="botao perigo" onClick={() => aoSalvar({})}>Toque de novo para apagar o histórico</button>
+          ) : (
+            <button type="button" className="link perigo-texto" onClick={() => setApagar(true)}>
+              Apagar o histórico guardado ({Object.keys(historico).length} meses)
+            </button>
+          ))}
+      </form>
+    </Folha>
   )
 }
 

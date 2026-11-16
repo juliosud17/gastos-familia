@@ -13,7 +13,7 @@ Ele está migrando a gestão da Benjoca do app "Meu Bolso" (Lovable, antunesdesp
 - Supabase: projeto `gastos-familia-dados` (ref `ghbaeaxcvbnlctaqwiyh`). URL e chave pública ficam em `src/lib.js`.
   SQL Editor direto: https://supabase.com/dashboard/project/ghbaeaxcvbnlctaqwiyh/sql/new
 - Migrações ficam em `supabase/` e o **Julio roda à mão** no SQL Editor, em ordem: `schema.sql`, `02-contas.sql`, `03-a-pagar.sql`, `04-benjoca.sql` (todas já rodadas em 15/11/2026),
-  `05-vendas.sql` e `06-estoque.sql` (criados em 15/11/2026 — **confirmar se ele rodou**).
+  `05-vendas.sql` e `06-estoque.sql` (rodados em 15/11/2026).
   Toda migração nova deve ser idempotente (`if not exists`, `create or replace`) e não apagar dados. Mande para ele o link do arquivo no GitHub + o link do SQL Editor.
 
 ## Stack e arquivos
@@ -84,7 +84,10 @@ Decisões do Julio (15/11/2026):
    - "Comprei": anota compra, lança despesa "Insumos" na Caixa Benjoca (opcional) e atualiza o preço do insumo (valor/quantidade). "Contei": nova contagem.
    - Ovomaltine não baixa estoque até ter produto/receita cadastrados. Estoque real ainda é a contagem de 07/07 — ele precisa recontar.
 6. Resumo de 12 meses — **feito em 15/11/2026**: Relatório com seletor 6/12 meses, totais do período, média por mês fechado, melhor mês, meses que bateram a meta.
-   - Pendências do bloco 5: importar o histórico do Meu Bolso (pedir export/CSV ao Julio); dividir gás (70% Benjoca) e luz (30% Benjoca).
+   - Histórico do Meu Bolso (15/11/2026): o Julio só tem o "Resumo por Mês" (lucro do negócio por mês, mai/2024 a set/2026; out/2026 sem lucro;
+     receitas só de jun–out/2026). Ele cola essa tabela no Relatório (📥) e ela vai para `negocio_config.historico` {"AAAA-MM": {receitas, lucro}}.
+     **Não pôr esses números no código: o repositório é público.** Meses sem anotação do negócio na Caderneta usam o lucro do histórico
+     (`comHistorico`); seletor 6/12/Tudo. Divisão gás/luz: feita na etapa 4.
 7. Desligar o Lovable.
 
 **Esperando do Julio (checklist, blocos 2 a 5):**

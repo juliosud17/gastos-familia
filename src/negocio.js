@@ -107,3 +107,42 @@ export function vinteOitoDias() {
   const p = (x) => String(x).padStart(2, '0')
   return [`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, fim]
 }
+
+// ---------- Histórico do Meu Bolso (etapa 6) ----------
+// O Julio cola a tabela "Resumo por Mês" do Meu Bolso: "Mai 2024  R$ 0,00  R$ 0,00  R$ 0,00  R$ 2.348,00".
+// Guardamos só no banco dele (familias.negocio_config.historico), nunca no código (o repositório é público).
+const ABREV = { jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5, jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11 }
+
+export function lerHistorico(texto) {
+  const r = {}
+  for (const linha of String(texto || '').split(/\n/)) {
+    const m = linha.match(/\b(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*\.?\s*(?:de\s*)?\/?\s*(\d{4})/i)
+    if (!m) continue
+    const valores = [...linha.slice(m.index + m[0].length).matchAll(/-?\s*R?\$?\s*-?\d{1,3}(?:\.\d{3})*,\d{2}/g)].map((x) => {
+      const neg = x[0].includes('-')
+      const n = Number(x[0].replace(/[^\d,]/g, '').replace(',', '.'))
+      return neg ? -n : n
+    })
+    if (!valores.length) continue
+    const chave = `${m[2]}-${String(ABREV[m[1].toLowerCase()] + 1).padStart(2, '0')}`
+    // Colunas: Receitas, Despesas, Saldo, Lucro Negócio (a última pode faltar)
+    r[chave] = { receitas: valores[0] ?? null, lucro: valores.length >= 4 ? valores[3] : null }
+  }
+  return r
+}
+
+// Meses sem nenhuma anotação do negócio na Caderneta usam o lucro do Meu Bolso
+export function comHistorico(meses, historico = {}) {
+  return meses.map((m) => {
+    const h = historico[`${m.ano}-${String(m.mes + 1).padStart(2, '0')}`]
+    if (!h || m.vendeu || m.gastou) return m
+    return { ...m, lucro: h.lucro, receitasMeuBolso: h.receitas, doMeuBolso: true }
+  })
+}
+
+export function primeiroMesHistorico(historico = {}) {
+  const k = Object.keys(historico).sort()[0]
+  if (!k) return null
+  const [a, mm] = k.split('-').map(Number)
+  return { ano: a, mes: mm - 1 }
+}

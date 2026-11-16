@@ -1955,3 +1955,19 @@ body:has(.modo-negocio) {
 .resumo-periodo {
   margin-bottom: 8px;
 }
+
+.campo textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--pauta);
+  background: var(--papel-claro);
+  font: inherit;
+  font-size: 15px;
+  color: var(--tinta);
+  resize: vertical;
+}
+
+.preenchido.antigo {
+  opacity: 0.55;
+}
