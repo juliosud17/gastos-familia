@@ -98,6 +98,8 @@ Decisões do Julio (15/11/2026):
      iFood bruto − taxas iFood = líquido − custo de produção (iFood) + vendas diretas − custo (diretas) = lucro operacional − taxas dos boys
      − despesas operacionais (negócio, sem Insumos e sem as anotações da noite) − luz/gás (no dia/semana, proporcional aos dias do mês) = lucro líquido.
      Vem das noites fechadas (`resumo`) + custo atual de cada sabor (`custosProducao` + `produtoDoSabor`). Abaixo fica o "Caixa do mês" (dinheiro real).
+     **Boys no detalhamento = reserva juntada nas vendas** (`resumo.reserva.total`), não a taxa cheia paga (pedido do Julio, 16/11/2026):
+     a diferença fica no banco de saldo dos boys. A linha mostra também quanto foi pago. O Caixa do mês continua com a taxa paga (dinheiro real).
    - **Decisões do Julio (15/11/2026, 23h38):**
      - Meta de R$ 10 mil = **lucro das vendas do mês** (lucro líquido do detalhamento). Início do negócio mostra esse lucro em destaque;
        o caixa (entrou − saiu) fica numa linha menor. Projeção e comparação entre meses também usam o lucro das vendas

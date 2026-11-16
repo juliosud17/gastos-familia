@@ -158,10 +158,11 @@ export function primeiroMesHistorico(historico = {}) {
 // ---------- Detalhamento (dia, semana ou mês), como no Meu Bolso ----------
 // Vendas vêm das noites fechadas (pedidos do iFood + pizzaria); custo de produção vem da Produção (custo de hoje de cada sabor).
 // Despesas operacionais: gastos do negócio no período, menos Insumos (já entram no custo de produção) e menos as taxas
-// que o fechamento da noite anotou (entram como "taxas dos boys").
+// que o fechamento da noite anotou. Boys: desconta a RESERVA juntada nas vendas (2,52/pote iFood + 2/un. pizzaria), não a taxa
+// cheia paga — a diferença sai/entra no banco de saldo dos boys (pedido do Julio, 16/11/2026).
 export function detalhamento({ noites, lancamentos, custoSabor, catPorId, cfg, ini, fim, rateioMes = null }) {
   const doPeriodo = noites.filter((n) => n.fechada && n.resumo && n.data >= ini && n.data <= fim)
-  let ifoodBruto = 0, comissao = 0, pagoEntrega = 0, custoIfood = 0, diretas = 0, custoDiretas = 0, taxasBoys = 0, pedidos = 0
+  let ifoodBruto = 0, comissao = 0, pagoEntrega = 0, custoIfood = 0, diretas = 0, custoDiretas = 0, taxasBoys = 0, taxasPagas = 0, pedidos = 0
   let potes = 0, brownies = 0
   const semCusto = new Set()
   for (const n of doPeriodo) {
@@ -182,7 +183,8 @@ export function detalhamento({ noites, lancamentos, custoSabor, catPorId, cfg, i
     pagoEntrega += r.ifood.pagoEntrega
     pedidos += r.ifood.pedidos
     diretas += r.pizzaria.valor
-    taxasBoys += r.taxas.total
+    taxasBoys += r.reserva?.total ?? r.taxas.total
+    taxasPagas += r.taxas.total
     const [ci, si] = custoDe(r.ifood.unidades)
     const [cd, sd] = custoDe(r.pizzaria.unidades)
     custoIfood += ci
@@ -233,6 +235,7 @@ export function detalhamento({ noites, lancamentos, custoSabor, catPorId, cfg, i
     faturamento: r2(ifoodBruto + diretas),
     lucroOperacional: r2(lucroOperacional),
     taxasBoys: r2(taxasBoys),
+    taxasPagas: r2(taxasPagas),
     despesas,
     despesasTotal: r2(despesasTotal),
     rateio,

@@ -360,7 +360,7 @@ function Detalhamento({ noites, lancamentos, producao, catPorId, cfg, periodo })
             <L t="Vendas diretas (pizzaria)" v={d.diretas} />
             <L t="Custo de produção (diretas)" v={d.custoDiretas} neg />
             <L t="Lucro operacional" v={d.lucroOperacional} forte />
-            <L t="Taxas dos boys" v={d.taxasBoys} neg />
+            <L t="Reserva dos boys" v={d.taxasBoys} neg sub={`juntado nas vendas · pagas ${dinheiro(d.taxasPagas)}, diferença ${d.taxasBoys - d.taxasPagas >= 0 ? 'ficou' : 'saiu'} no saldo dos boys (${dinheiro(Math.abs(d.taxasBoys - d.taxasPagas))})`} />
             <L t="Despesas operacionais" v={d.despesasTotal} neg sub={Object.keys(d.despesas).length ? Object.entries(d.despesas).map(([id, v]) => `${nomeCat(id)} ${dinheiro(v)}`).join(' · ') : 'sem insumos (já estão no custo)'} />
             {d.apurados.length > 0 && (
               <>
