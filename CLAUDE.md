@@ -92,7 +92,14 @@ Decisões do Julio (15/11/2026):
      iFood bruto − taxas iFood = líquido − custo de produção (iFood) + vendas diretas − custo (diretas) = lucro operacional − taxas dos boys
      − despesas operacionais (negócio, sem Insumos e sem as anotações da noite) − luz/gás (no dia/semana, proporcional aos dias do mês) = lucro líquido.
      Vem das noites fechadas (`resumo`) + custo atual de cada sabor (`custosProducao` + `produtoDoSabor`). Abaixo fica o "Caixa do mês" (dinheiro real).
-     A meta usa o caixa; perguntar ao Julio se prefere a meta pelo lucro do detalhamento (o Meu Bolso usava esse).
+   - **Decisões do Julio (15/11/2026, 23h38):**
+     - Meta de R$ 10 mil = **lucro das vendas do mês** (lucro líquido do detalhamento). Início do negócio mostra esse lucro em destaque;
+       o caixa (entrou − saiu) fica numa linha menor. Projeção e comparação entre meses também usam o lucro das vendas
+       (mês com noites fechadas → vendas; senão caixa; senão histórico do Meu Bolso).
+     - Ovomaltine (sem receita) usa o custo do brownie mais caro (`custoPorSabor`, vale para qualquer sabor sem produto: o mais caro do tipo).
+     - **Mudar o custo dos insumos não pode alterar o que já foi computado:** ao fechar a noite, `resumo.custos` guarda o custo de cada sabor;
+       o detalhamento usa `resumo.custos` (só cai no custo atual se não tiver). Noites fechadas antes disso recebem o custo atual uma vez
+       (Painel → `carregarVendasNeg`). Caixa e histórico já eram fixos. Estoque usa as receitas atuais (não é dinheiro).
 7. Desligar o Lovable (depois de 1–2 semanas usando a aba Vendas e de recontar o estoque).
 
 **Checkup de 15/11/2026:** todas as telas testadas na demo (casa e negócio), API real e demo com as mesmas funções.

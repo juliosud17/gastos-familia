@@ -3,7 +3,7 @@ import { dinheiro, numero, textoErro, MESES, limitesMes, lerNumero, dataCurta, c
 import { produtoDoSabor } from './estoque.js'
 import { SABOR } from './vendas.js'
 import Folha from './Folha.jsx'
-import { rateioCasa, numerosNegocio, situacaoMeta, projecao, ultimosMeses, separarPorMes, vinteOitoDias, lerHistorico, comHistorico, primeiroMesHistorico, detalhamento, semanasDoMes } from './negocio.js'
+import { rateioCasa, numerosNegocio, situacaoMeta, projecao, ultimosMeses, separarPorMes, vinteOitoDias, lerHistorico, comHistorico, primeiroMesHistorico, detalhamento, semanasDoMes, custoPorSabor, projecaoVendas, diasDeNoites } from './negocio.js'
 
 const MESES_CURTOS = MESES.map((m) => m.slice(0, 3))
 
@@ -47,17 +47,35 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
   }, [api, familia.id, meses, periodo.ano, periodo.mes, lancamentosMes]) // eslint-disable-line
 
   const n = useMemo(() => numerosNegocio(lancamentosMes, contaPorId, catPorId, cfg), [lancamentosMes, contaPorId, catPorId, cfg])
-  const meta = situacaoMeta(n.lucro, cfg, periodo.ano, periodo.mes)
+  // Meta, projeção e comparação usam o lucro das vendas (noites fechadas), como o Meu Bolso
+  const custoSabor = useMemo(() => (producao ? custoPorSabor(producao).custos : null), [producao])
+  const detMes = (ano, mes, lancs) => {
+    const [a, b] = limitesMes(ano, mes)
+    return detalhamento({ noites, lancamentos: lancs, custoSabor, catPorId, cfg, ini: a, fim: b })
+  }
+  const vendasMes = useMemo(
+    () => (custoSabor ? detMes(periodo.ano, periodo.mes, lancamentosMes || []) : null),
+    [custoSabor, noites, lancamentosMes, periodo.ano, periodo.mes, catPorId, cfg] // eslint-disable-line
+  )
+  const meta = vendasMes ? situacaoMeta(vendasMes.lucroLiquido, cfg, periodo.ano, periodo.mes) : null
   const proj = useMemo(() => {
-    if (!faixa) return null
-    const [ini, fim] = vinteOitoDias()
-    return projecao(faixa.filter((l) => l.data >= ini && l.data <= fim), n.lucro, contaPorId, catPorId, cfg, periodo.ano, periodo.mes)
-  }, [faixa, n.lucro, contaPorId, catPorId, cfg, periodo.ano, periodo.mes])
+    if (!faixa || !custoSabor || !vendasMes) return null
+    const j = diasDeNoites(noites)
+    const d28 = detalhamento({ noites, lancamentos: faixa, custoSabor, catPorId, cfg, ini: j.ini, fim: j.fim })
+    return projecaoVendas(d28, j.dias, vendasMes.lucroLiquido, periodo.ano, periodo.mes)
+  }, [faixa, custoSabor, vendasMes, noites, catPorId, cfg, periodo.ano, periodo.mes])
 
   const comparacao = useMemo(() => {
-    if (!faixa) return null
-    return comHistorico(separarPorMes(faixa, meses).map((m) => ({ ...m, ...numerosNegocio(m.lancamentos, contaPorId, catPorId, cfg) })), cfg.historico)
-  }, [faixa, meses, contaPorId, catPorId, cfg])
+    if (!faixa || !custoSabor) return null
+    const porMes = separarPorMes(faixa, meses).map((m) => {
+      const v = detMes(m.ano, m.mes, m.lancamentos)
+      if (v.noites > 0) {
+        return { ...m, lucro: v.lucroLiquido, vendeu: v.faturamento, gastou: v.faturamento - v.lucroLiquido, rateio: { total: 0, grupos: [] }, porVendas: true }
+      }
+      return { ...m, ...numerosNegocio(m.lancamentos, contaPorId, catPorId, cfg) }
+    })
+    return comHistorico(porMes, cfg.historico)
+  }, [faixa, meses, contaPorId, catPorId, cfg, custoSabor, noites]) // eslint-disable-line
   const doMes = historico[`${periodo.ano}-${String(periodo.mes + 1).padStart(2, '0')}`]
 
   const [ini, fim] = limitesMes(periodo.ano, periodo.mes)
@@ -87,6 +105,12 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
         </p>
       )}
 
+      {meta && (
+        <p className={'aviso ' + (meta.bateu ? 'ok' : 'neutro')}>
+          Meta pelo lucro das vendas: {dinheiro(vendasMes.lucroLiquido)} de {dinheiro(meta.meta)} ({Math.round(meta.pct)}%)
+          {meta.bateu ? '. Meta batida!' : meta.atual ? `. Faltam ${dinheiro(meta.falta)}.` : '.'}
+        </p>
+      )}
       {faixa && producao && (
         <Detalhamento noites={noites} lancamentos={faixa} producao={producao} catPorId={catPorId} cfg={cfg} periodo={periodo} />
       )}
@@ -116,12 +140,7 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
           <span>Lucro</span>
           <strong className={n.lucro < 0 ? 'tinta-vermelha' : ''}>{dinheiro(n.lucro)}</strong>
         </p>
-        {meta && (
-          <p className="nota">
-            {meta.bateu ? 'Bateu a meta de ' : `${Math.round(meta.pct)}% da meta de `}
-            {dinheiro(meta.meta)}.{n.retirado > 0 && ` Retirado para casa: ${dinheiro(n.retirado)}.`}
-          </p>
-        )}
+        {n.retirado > 0 && <p className="nota">Retirado para casa: {dinheiro(n.retirado)}.</p>}
         {n.rateio.grupos.length > 0 && (
           <button className="link" onClick={() => setVerRateio((v) => !v)}>{verRateio ? 'Esconder' : 'Ver'} as contas de luz e gás que entraram</button>
         )}
@@ -140,18 +159,18 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
       {proj?.poucosDias && (
         <section className="bloco">
           <h2>Para onde o mês vai</h2>
-          <p className="nota">A estimativa aparece quando tiver pelo menos 7 dias de anotações da Benjoca (agora: {proj.poucosDias}).</p>
+          <p className="nota">A estimativa aparece quando tiver pelo menos 7 dias de noites fechadas (agora: {proj.poucosDias}).</p>
         </section>
       )}
       {proj && !proj.poucosDias && (
         <section className="bloco">
           <h2>Para onde o mês vai</h2>
           <p className="texto-projecao">
-            No ritmo dos últimos {proj.dias} dias ({dinheiro(proj.porDia)} de lucro por dia), {MESES[periodo.mes]} deve fechar perto de{' '}
+            No ritmo das noites dos últimos {proj.dias} dias ({dinheiro(proj.porDia)} de lucro das vendas por dia), {MESES[periodo.mes]} deve fechar perto de{' '}
             <strong>{dinheiro(proj.fim)}</strong>
             {meta && (proj.fim >= meta.meta ? ', acima da meta.' : `, ${dinheiro(meta.meta - proj.fim)} abaixo da meta.`)}
           </p>
-          <p className="nota">É uma estimativa. Com 28 dias de anotações ela pega 4 repasses do iFood e não infla o começo do mês.</p>
+          <p className="nota">É uma estimativa pelas noites fechadas, sem inflar o começo do mês.</p>
         </section>
       )}
 
@@ -262,11 +281,7 @@ function Detalhamento({ noites, lancamentos, producao, catPorId, cfg, periodo })
   const semanaPadrao = semanas.find((w) => w.ini <= hoje && hoje <= w.fim) || semanas[semanas.length - 1]
   const semanaEscolhida = semanas.find((w) => w.ini === semana) || semanaPadrao
 
-  const custoSabor = useMemo(() => {
-    const custos = custosProducao(producao)
-    const mapa = produtoDoSabor(producao.produtos || [])
-    return Object.fromEntries(Object.entries(mapa).map(([s, p]) => [s, custos.produto[p] || 0]))
-  }, [producao])
+  const { custos: custoSabor, estimados } = useMemo(() => custoPorSabor(producao), [producao])
 
   const faixa = modo === 'dia' ? [diaEscolhido, diaEscolhido] : modo === 'semana' ? [semanaEscolhida.ini, semanaEscolhida.fim] : [ini, fim]
   const rateioMes = useMemo(() => {
@@ -337,11 +352,16 @@ function Detalhamento({ noites, lancamentos, producao, catPorId, cfg, periodo })
               <strong className={d.lucroLiquido < 0 ? 'tinta-vermelha' : ''}>{dinheiro(d.lucroLiquido)}</strong>
             </p>
           </div>
+          {estimados.length > 0 && (
+            <p className="nota">
+              {estimados.map((s) => SABOR[s]?.nome || s).join(', ')} ainda sem receita: usa o custo do brownie mais caro ({dinheiro(Math.max(...estimados.map((s) => custoSabor[s] || 0)))}).
+            </p>
+          )}
           {d.semCusto.length > 0 && (
             <p className="nota">Sem custo cadastrado (contou como R$ 0): {d.semCusto.map((s) => SABOR[s]?.nome || s).join(', ')}.</p>
           )}
           <p className="nota">
-            Conta pelas vendas anotadas na aba Vendas e pelo custo de hoje de cada produto. O “Caixa do mês” abaixo conta o dinheiro de verdade (repasses, compras), por isso os dois podem ser diferentes.
+            Conta pelas noites fechadas na aba Vendas, com o custo de cada produto guardado no dia em que a noite foi fechada (mudar o preço de um insumo depois não muda o que já foi fechado). O “Caixa do mês” abaixo conta o dinheiro de verdade (repasses, compras), por isso os dois podem ser diferentes.
           </p>
         </>
       )}

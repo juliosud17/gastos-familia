@@ -1,5 +1,7 @@
 // ---------- Painel do negócio (etapa 4): lucro, meta, divisão de luz/gás, comparação entre meses ----------
-import { ehRetirada, limitesMes, hojeISO } from './lib.js'
+import { ehRetirada, limitesMes, hojeISO, custosProducao } from './lib.js'
+import { produtoDoSabor } from './estoque.js'
+import { SABORES } from './vendas.js'
 
 const r2 = (v) => Math.round(v * 100) / 100
 const tem = (texto, termos) => {
@@ -159,20 +161,22 @@ export function primeiroMesHistorico(historico = {}) {
 // que o fechamento da noite anotou (entram como "taxas dos boys").
 export function detalhamento({ noites, lancamentos, custoSabor, catPorId, cfg, ini, fim, rateioMes = null }) {
   const doPeriodo = noites.filter((n) => n.fechada && n.resumo && n.data >= ini && n.data <= fim)
-  const custoDe = (unidades) => {
-    let c = 0
-    const sem = new Set()
-    for (const [s, q] of Object.entries(unidades || {})) {
-      if (custoSabor[s] === undefined) sem.add(s)
-      else c += custoSabor[s] * q
-    }
-    return [c, sem]
-  }
   let ifoodBruto = 0, comissao = 0, pagoEntrega = 0, custoIfood = 0, diretas = 0, custoDiretas = 0, taxasBoys = 0, pedidos = 0
   let potes = 0, brownies = 0
   const semCusto = new Set()
   for (const n of doPeriodo) {
     const r = n.resumo
+    // Custo guardado no dia em que a noite foi fechada; mudar o preço de um insumo depois não muda o passado
+    const custos = r.custos || custoSabor
+    const custoDe = (unidades) => {
+      let c = 0
+      const sem = new Set()
+      for (const [s, q] of Object.entries(unidades || {})) {
+        if (custos[s] === undefined) sem.add(s)
+        else c += custos[s] * q
+      }
+      return [c, sem]
+    }
     ifoodBruto += r.ifood.valor
     comissao += r.ifood.comissao
     pagoEntrega += r.ifood.pagoEntrega
@@ -248,4 +252,46 @@ export function semanasDoMes(ano, mes) {
     if (d > new Date(ano, mes + 1, 0)) break
   }
   return r
+}
+
+// Custo de 1 unidade de cada sabor da noite, com os preços de agora.
+// Sabor sem produto/receita cadastrado (ex.: Ovomaltine) usa o mais caro do mesmo tipo, até ter a receita (decisão do Julio, 15/11/2026).
+export function custoPorSabor(producao) {
+  const custos = custosProducao(producao)
+  const mapa = produtoDoSabor(producao.produtos || [])
+  const r = {}
+  for (const [s, p] of Object.entries(mapa)) r[s] = r2(custos.produto[p] || 0)
+  const estimados = []
+  for (const s of SABORES) {
+    if (r[s.id] !== undefined) continue
+    const doTipo = SABORES.filter((x) => x.tipo === s.tipo && mapa[x.id]).map((x) => r[x.id])
+    if (!doTipo.length) continue
+    r[s.id] = Math.max(...doTipo)
+    estimados.push(s.id)
+  }
+  return { custos: r, estimados }
+}
+
+// Projeção do lucro das vendas: o que já tem + média por dia das noites dos últimos 28 dias × dias que faltam
+export function projecaoVendas(d28, diasComDados, lucroMes, ano, mes) {
+  const hoje = new Date()
+  if (hoje.getFullYear() !== ano || hoje.getMonth() !== mes) return null
+  if (diasComDados < 7) return { poucosDias: diasComDados }
+  const ultimo = new Date(ano, mes + 1, 0).getDate()
+  const restam = ultimo - hoje.getDate()
+  const porDia = d28.lucroLiquido / diasComDados
+  return { porDia: r2(porDia), restam, dias: diasComDados, fim: r2(lucroMes + porDia * restam) }
+}
+
+// Dias desde a primeira noite fechada dentro dos últimos 28 dias
+export function diasDeNoites(noites) {
+  const hoje = hojeISO()
+  const d = new Date()
+  d.setDate(d.getDate() - 27)
+  const p = (x) => String(x).padStart(2, '0')
+  const ini = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  const datas = noites.filter((n) => n.fechada && n.resumo && n.data >= ini && n.data <= hoje).map((n) => n.data).sort()
+  if (!datas.length) return { ini, fim: hoje, dias: 0 }
+  const dias = Math.min(28, Math.round((new Date(hoje + 'T12:00:00') - new Date(datas[0] + 'T12:00:00')) / 864e5) + 1)
+  return { ini, fim: hoje, dias }
 }

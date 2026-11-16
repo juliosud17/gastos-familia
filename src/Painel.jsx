@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { dinheiro, numero, MESES, rotuloDia, primeiroNome, textoErro, efeito, alertasDeVencimento, textoPrazo, doCaderno, ehRetirada, SUPABASE_URL, SUPABASE_KEY } from './lib.js'
+import { dinheiro, numero, MESES, limitesMes, rotuloDia, primeiroNome, textoErro, efeito, alertasDeVencimento, textoPrazo, doCaderno, ehRetirada, SUPABASE_URL, SUPABASE_KEY } from './lib.js'
 import Lancar from './Lancar.jsx'
 import Folha from './Folha.jsx'
 import { IconeCasa, IconeLista, IconeMais, IconeAjustes, IconeCofre, IconeCalendario, IconeForno, IconeSacola, Seta } from './Icones.jsx'
@@ -10,7 +10,7 @@ import Vendas from './Vendas.jsx'
 import Relatorio from './Relatorio.jsx'
 import { AvisoEstoque } from './Estoque.jsx'
 import { configNegocio } from './vendas.js'
-import { numerosNegocio, situacaoMeta } from './negocio.js'
+import { numerosNegocio, situacaoMeta, detalhamento, custoPorSabor } from './negocio.js'
 
 const ABAS = [
   { id: 'inicio', nome: 'Início', Icone: IconeCasa },
@@ -168,6 +168,23 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
 
   const catPorId = useMemo(() => Object.fromEntries(categorias.map((c) => [c.id, c])), [categorias])
   const cfg = useMemo(() => configNegocio(familia), [familia])
+
+  // Vendas do negócio (noites fechadas + custos) para o lucro das vendas e a meta
+  const [vendasNeg, setVendasNeg] = useState(null) // { noites, producao }
+  const carregarVendasNeg = useCallback(async () => {
+    try {
+      const [noites, producao] = await Promise.all([api.noites(familia.id), api.producao(familia.id)])
+      // Noites fechadas antes de o custo ser guardado: guarda o de agora (uma vez só), para não mudar mais
+      const { custos } = custoPorSabor(producao)
+      for (const n of noites) {
+        if (n.fechada && n.resumo && !n.resumo.custos) {
+          n.resumo = { ...n.resumo, custos }
+          api.salvarNoite({ id: n.id, resumo: n.resumo }).catch(() => {})
+        }
+      }
+      setVendasNeg({ noites, producao })
+    } catch {}
+  }, [api, familia.id])
   const pessoaPorId = useMemo(() => Object.fromEntries(membros.map((m) => [m.user_id, m])), [membros])
   const contaPorId = useMemo(() => Object.fromEntries(contas.map((c) => [c.id, c])), [contas])
 
@@ -180,6 +197,19 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
   const compEscopo = useMemo(() => compromissos.filter((c) => (c.escopo || 'casa') === escopo), [compromissos, escopo])
   const contasCasa = useMemo(() => contas.filter((c) => !c.negocio), [contas])
   const contasNegocio = useMemo(() => contas.filter((c) => c.negocio), [contas])
+
+  useEffect(() => {
+    if (negocio && (aba === 'inicio' || aba === 'relatorio')) carregarVendasNeg()
+  }, [negocio, aba, carregarVendasNeg, lancamentos])
+
+  // Lucro das vendas do mês (é o que conta para a meta, como no Meu Bolso)
+  const vendasMes = useMemo(() => {
+    if (!negocio || !vendasNeg || !lancamentos) return null
+    const [ini, fim] = limitesMes(periodo.ano, periodo.mes)
+    return detalhamento({
+      noites: vendasNeg.noites, lancamentos, custoSabor: custoPorSabor(vendasNeg.producao).custos, catPorId, cfg, ini, fim,
+    })
+  }, [negocio, vendasNeg, lancamentos, periodo.ano, periodo.mes, catPorId, cfg])
 
   const totais = useMemo(() => {
     let entrou = 0
@@ -303,7 +333,8 @@ export default function Painel({ api, base, recarregarBase, aoSair }) {
             alertas={alertasEscopo}
             nomeNegocio={nomeNegocio}
             retirar={() => setFolha({ tipo: 'transferencia', escopo: 'negocio' })}
-            meta={negocio ? situacaoMeta(totais.sobra, cfg, periodo.ano, periodo.mes) : null}
+            meta={vendasMes ? situacaoMeta(vendasMes.lucroLiquido, cfg, periodo.ano, periodo.mes) : null}
+            vendasMes={vendasMes}
             api={api}
             familiaId={familia.id}
           />
@@ -436,33 +467,41 @@ function BotaoAba({ aba, ativa, onClick }) {
 
 // ---------------- Início ----------------
 
-function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, escopo, abrir, irPara, guardado, alertas = [], nomeNegocio, retirar, meta, api, familiaId }) {
+function Inicio({ lancamentos, totais, categorias, catPorId, pessoaPorId, contaPorId, periodo, escopo, abrir, irPara, guardado, alertas = [], nomeNegocio, retirar, meta, api, familiaId, vendasMes }) {
   const negocio = escopo === 'negocio'
   const comLimite = categorias.filter((c) => c.tipo === 'despesa' && c.limite)
   const gastoPorCat = useMemo(() => somarPorCategoria(lancamentos), [lancamentos])
   const estourados = comLimite.filter((c) => (gastoPorCat[c.id] || 0) > +c.limite)
-  const negativo = totais.sobra < 0
+  // No negócio, o número grande é o lucro das vendas (noites fechadas, já sem taxas, custos e despesas)
+  const valorGrande = negocio ? vendasMes?.lucroLiquido : totais.sobra
+  const negativo = (valorGrande || 0) < 0
 
   return (
     <>
       <section className="pagina-pautada resumo" aria-label={`Resumo de ${MESES[periodo.mes]}`}>
         <p className="rotulo-sobra">
           {negocio
-            ? negativo ? 'Gastou mais do que vendeu' : `Lucro de ${MESES[periodo.mes]}`
+            ? negativo ? 'Prejuízo nas vendas' : `Lucro das vendas de ${MESES[periodo.mes]}`
             : negativo ? 'Passou do que entrou' : `Sobra de ${MESES[periodo.mes]}`}
         </p>
         <p className={'sobra' + (negativo ? ' negativa' : '')}>
           <span className="moeda">{negativo ? '−R$' : 'R$'}</span>
-          {lancamentos ? numero(totais.sobra) : '—'}
+          {lancamentos && (!negocio || vendasMes) ? numero(valorGrande) : '—'}
         </p>
-        <div className="entrou-saiu">
-          <p><span>{negocio ? 'Vendeu' : 'Entrou'}</span><strong className="tinta-azul">{dinheiro(totais.entrou)}</strong></p>
-          <p><span>{negocio ? 'Gastou' : 'Saiu'}</span><strong className="tinta-vermelha">{dinheiro(totais.saiu)}</strong></p>
-        </div>
-        {negocio && totais.rateio?.total > 0 && (
-          <p className="linha-guardado sem-toque">
-            <span>{totais.rateio.grupos.map((g) => `${g.nome} ${g.pct}%`).join(' + ')} da casa</span>
-            <strong className="tinta-vermelha">{dinheiro(totais.rateio.total)}</strong>
+        {negocio ? (
+          <div className="entrou-saiu">
+            <p><span>Faturou</span><strong className="tinta-azul">{dinheiro(vendasMes?.faturamento)}</strong></p>
+            <p><span>Custos e despesas</span><strong className="tinta-vermelha">{dinheiro((vendasMes?.faturamento || 0) - (vendasMes?.lucroLiquido || 0))}</strong></p>
+          </div>
+        ) : (
+          <div className="entrou-saiu">
+            <p><span>Entrou</span><strong className="tinta-azul">{dinheiro(totais.entrou)}</strong></p>
+            <p><span>Saiu</span><strong className="tinta-vermelha">{dinheiro(totais.saiu)}</strong></p>
+          </div>
+        )}
+        {negocio && vendasMes && (
+          <p className="nota nota-resumo">
+            {vendasMes.noites} {vendasMes.noites === 1 ? 'noite fechada' : 'noites fechadas'} · caixa do mês (entrou − saiu): {dinheiro(totais.entrou - totais.saiu)}
           </p>
         )}
         {meta && lancamentos && <Meta meta={meta} irPara={irPara} />}

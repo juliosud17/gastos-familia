@@ -2043,3 +2043,13 @@ body:has(.modo-negocio) {
   font-weight: 800;
   margin: 8px 0 2px;
 }
+
+.aviso.neutro {
+  background: var(--papel-claro);
+  border: 1.5px solid var(--pauta);
+  color: var(--tinta);
+}
+
+.nota-resumo {
+  margin-top: 6px;
+}

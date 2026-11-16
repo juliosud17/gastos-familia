@@ -6,6 +6,7 @@ import {
   SABOR, POTES, BROWNIES, CARDAPIO, ITEM, configNegocio, contaNoite, acumulados, faltaNoPedido, resumoPedido,
   valorPedido, noiteDeHoje, somarDias, lancamentosDaNoite,
 } from './vendas.js'
+import { custoPorSabor } from './negocio.js'
 
 const sinal = (v) => (v < 0 ? '−' : v > 0 ? '+' : '') + dinheiro(Math.abs(v))
 
@@ -150,6 +151,10 @@ export default function Vendas({ api, familia, categorias, contaNegocio, recarre
       const id = await garantirNoite()
       const n = { ...atual.current, id }
       const resumo = contaNoite(n, pedidos, cfg)
+      // Guarda o custo de cada sabor de hoje: se o preço de um insumo mudar depois, esta noite não muda
+      try {
+        resumo.custos = custoPorSabor(await api.producao(familia.id)).custos
+      } catch {}
       const lancs = lancamentosDaNoite({ ...n, resumo }, contaNegocio, categorias)
       const salva = await api.fecharNoite(n, resumo, lancs)
       setNoite((x) => ({ ...x, ...salva }))
