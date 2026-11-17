@@ -81,7 +81,8 @@ Decisões do Julio (15/11/2026):
    - **Custo e lucro da noite na aba Vendas** (pedido do Julio, 17/11/2026): bloco "Custo e lucro da noite" no passo 5 (`LucroNoite`), usando
      `detalhamento` com uma noite só (sem despesas do mês e sem luz/gás). Aberta = prévia com custo de hoje; fechada = `resumo.custos`.
    - **Leitura de fotos com IA** (pedido do Julio, 17/11/2026): Edge Function `supabase/functions/ler-imagem/index.ts` (Deno) chama a API da
-     Anthropic (segredo `ANTHROPIC_API_KEY`, opcional `MODELO`, padrão `claude-sonnet-5-5`) com tool_use para devolver JSON.
+     Anthropic (segredo `ANTHROPIC_API_KEY`, padrão `claude-sonnet-5-5`) **ou da OpenAI** (segredo `OPENAI_API_KEY`, padrão `gpt-4o-mini`,
+     function calling) — se tiver as duas, usa o Claude; `MODELO` troca o modelo. O Julio já tem uma chave (do app de inglês, que usa GPT).
      O Julio cria a função **pelo painel do Supabase** (Edge Functions → editor), com "Verify JWT" ligado. App: `api.lerImagem(tipo, imagens, contexto)`
      (`supabase.functions.invoke`; demo devolve exemplo), `src/imagens.js` (`prepararImagem` reduz para JPEG ≤1600/2000 px, contextos, `pedidosDaLeitura`).
      - Vendas: "📷 Ler pedidos de print ou foto da comanda" → folha `PedidosLidos` → anota pedidos com `taxa` null; se já existe nome anotado sem itens
