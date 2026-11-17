@@ -6,7 +6,8 @@ import {
   SABOR, POTES, BROWNIES, CARDAPIO, ITEM, configNegocio, contaNoite, acumulados, faltaNoPedido, resumoPedido,
   valorPedido, noiteDeHoje, somarDias, lancamentosDaNoite, textoFechamento, mandarNoWhatsApp,
 } from './vendas.js'
-import { custoPorSabor } from './negocio.js'
+import { custoPorSabor, detalhamento } from './negocio.js'
+import { prepararImagem, contextoPedidos, pedidosDaLeitura } from './imagens.js'
 
 const sinal = (v) => (v < 0 ? '−' : v > 0 ? '+' : '') + dinheiro(Math.abs(v))
 
@@ -22,6 +23,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
   const [fechando, setFechando] = useState(false)
   const [novoNome, setNovoNome] = useState('')
   const [anterior, setAnterior] = useState(null) // { data, sobrou } da noite anterior
+  const [producao, setProducao] = useState(null) // para o custo e o lucro da noite
 
   // ---------- Carregar ----------
   const carregarNoite = useCallback(async () => {
@@ -56,6 +58,9 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
   useEffect(() => {
     carregarSaldos()
   }, [carregarSaldos])
+  useEffect(() => {
+    api.producao(familia.id).then(setProducao).catch(() => {})
+  }, [api, familia.id])
 
   // ---------- Salvar a noite (aos poucos, sem botão) ----------
   const atual = useRef(null)
@@ -102,7 +107,22 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
   const conta = useMemo(() => (noite ? contaNoite(noite, pedidos, cfg) : null), [noite, pedidos, cfg])
   const acum = useMemo(() => acumulados(historico, buscas, cfg), [historico, buscas, cfg])
   const pendentes = pedidos.filter((p) => faltaNoPedido(p).length)
+
   const fechada = Boolean(noite?.fechada)
+  // Custo e lucro da noite: fechada usa o custo guardado no fechamento; aberta é uma prévia com o custo de hoje
+  const lucroNoite = useMemo(() => {
+    if (!producao || !conta || !noite) return null
+    const r = fechada && noite.resumo ? noite.resumo : conta
+    return detalhamento({
+      noites: [{ data: noite.data, fechada: true, resumo: r }],
+      lancamentos: [],
+      custoSabor: custoPorSabor(producao).custos,
+      catPorId: {},
+      cfg: { ...cfg, apurados: [], rateios: [] },
+      ini: noite.data,
+      fim: noite.data,
+    })
+  }, [producao, conta, noite, fechada, cfg])
 
   // ---------- Pedidos ----------
   async function anotarCliente(e) {
@@ -116,6 +136,55 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
       setNovoNome('')
     } catch (e) {
       aviso(textoErro(e))
+    }
+  }
+
+  // ---------- Pedidos lidos de foto (print do iFood ou comanda) ----------
+  const [lendo, setLendo] = useState(false)
+  const [lidos, setLidos] = useState(null)
+  const fotoRef = useRef(null)
+
+  async function lerFotos(e) {
+    const arquivos = [...(e.target.files || [])].slice(0, 6)
+    e.target.value = ''
+    if (!arquivos.length) return
+    setLendo(true)
+    try {
+      const imagens = await Promise.all(arquivos.map((a) => prepararImagem(a)))
+      const r = await api.lerImagem('pedido', imagens, contextoPedidos(familia))
+      const lista = pedidosDaLeitura(r)
+      if (!lista.length) aviso('Não achei pedidos nessa foto.')
+      else setLidos(lista)
+    } catch (err) {
+      aviso(textoErro(err))
+    } finally {
+      setLendo(false)
+    }
+  }
+
+  async function adicionarLidos(escolhidos) {
+    try {
+      const noite_id = await garantirNoite()
+      const primeiro = (t) => (t || '').trim().toLowerCase().split(/\s+/)[0]
+      let atuais = [...pedidos]
+      let n = 0
+      for (const p of escolhidos) {
+        const pago = p.pago_na_entrega ? (p.valor_total ?? valorPedido(p, cfg)) : 0
+        // Se o nome já foi anotado na correria (sem itens), completa esse pedido em vez de criar outro
+        const rapido = atuais.find((x) => !x.linhas?.length && primeiro(x.cliente) && primeiro(x.cliente) === primeiro(p.cliente))
+        const salvo = await api.salvarPedido(
+          rapido
+            ? { id: rapido.id, cliente: rapido.cliente, linhas: p.linhas, pago_entrega: pago, taxa: rapido.taxa ?? null }
+            : { familia_id: familia.id, noite_id, cliente: p.cliente, linhas: p.linhas, pago_entrega: pago, taxa: null }
+        )
+        atuais = rapido ? atuais.map((x) => (x.id === salvo.id ? salvo : x)) : [...atuais, salvo]
+        n++
+      }
+      setPedidos(atuais)
+      setLidos(null)
+      aviso(`${n} ${n === 1 ? 'pedido anotado' : 'pedidos anotados'}. Falta só a taxa do boy.`)
+    } catch (err) {
+      aviso(textoErro(err))
     }
   }
 
@@ -293,6 +362,14 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
                 <button className="botao principal" disabled={!novoNome.trim()}>Anotar</button>
               </form>
             )}
+            {!fechada && (
+              <>
+                <input ref={fotoRef} type="file" accept="image/*" multiple hidden onChange={lerFotos} />
+                <button className="botao secundario largo botao-foto" disabled={lendo} onClick={() => fotoRef.current?.click()}>
+                  {lendo ? 'Lendo a foto…' : '📷 Ler pedidos de print ou foto da comanda'}
+                </button>
+              </>
+            )}
             {!fechada && <p className="nota">Na correria, anote só o nome. Depois toque no pedido para completar.</p>}
             {pedidos.length > 0 && (
               <ul className="linhas lista-pedidos">
@@ -361,6 +438,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
               <p className="nota">A conta da pizzaria fica certa depois que você anotar o que sobrou (passo 4).</p>
             )}
             <Fechamento conta={conta} cfg={cfg} />
+            {lucroNoite && <LucroNoite d={lucroNoite} fechada={fechada} cfg={cfg} />}
 
             <div className="pegou">
               <p className="rotulo-pegou">Quanto você pegou agora em dinheiro?</p>
@@ -441,6 +519,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
       {folha === 'busca' && (
         <Buscar aBuscar={acum.aBuscar} buscas={buscas} contas={contasCasa} aoSalvar={salvarBusca} aoExcluir={excluirBusca} aoFechar={() => setFolha(null)} />
       )}
+      {lidos && <PedidosLidos lidos={lidos} pedidos={pedidos} cfg={cfg} aoAdicionar={adicionarLidos} aoFechar={() => setLidos(null)} />}
       {folha === 'ajustes' && <AjustesVendas cfg={cfg} aoSalvar={salvarAjustes} aoFechar={() => setFolha(null)} />}
     </div>
   )
@@ -555,6 +634,78 @@ function Contador({ rotulo, letra, valor, veio = 0, veioCasa = 0, bloqueado, aoM
 }
 
 // ---------------- Fechamento ----------------
+
+function PedidosLidos({ lidos, pedidos, cfg, aoAdicionar, aoFechar }) {
+  const [marcados, setMarcados] = useState(() => lidos.map(() => true))
+  const [salvando, setSalvando] = useState(false)
+  const primeiro = (t) => (t || '').trim().toLowerCase().split(/\s+/)[0]
+  const escolhidos = lidos.filter((_, i) => marcados[i])
+  return (
+    <Folha titulo="Pedidos lidos da foto" aoFechar={aoFechar} classe="folha-negocio">
+      <div className="formulario">
+        <p className="nota">Confira e desmarque o que não for pedido de hoje. Depois toque em cada pedido para pôr a taxa do boy.</p>
+        <ul className="lista-lidos">
+          {lidos.map((p, i) => {
+            const valor = valorPedido(p, cfg)
+            const falta = faltaNoPedido({ ...p, taxa: 0 })
+            const jaTem = pedidos.find((x) => primeiro(x.cliente) && primeiro(x.cliente) === primeiro(p.cliente))
+            return (
+              <li key={i}>
+                <label className="item-lido">
+                  <input type="checkbox" checked={marcados[i]} onChange={(e) => setMarcados((m) => m.map((v, j) => (j === i ? e.target.checked : v)))} />
+                  <span className="texto-lido">
+                    <strong>{p.cliente || 'Sem nome'}</strong>
+                    <span>{p.linhas.length ? resumoPedido(p) : 'não consegui ler os itens'}</span>
+                    <small>
+                      {dinheiro(valor)}
+                      {p.valor_total !== null && Math.abs(p.valor_total - valor) > 0.05 && ` (na foto: ${dinheiro(p.valor_total)})`}
+                      {p.pago_na_entrega ? ' · pago na entrega' : ' · pago no app'}
+                      {falta.length > 0 && ` · confira ${falta.join(', ')}`}
+                      {jaTem && (jaTem.linhas?.length ? ' · ⚠️ já existe um pedido com esse nome' : ' · completa o nome anotado')}
+                    </small>
+                  </span>
+                </label>
+              </li>
+            )
+          })}
+        </ul>
+        <button
+          className="botao principal"
+          disabled={!escolhidos.length || salvando}
+          onClick={async () => {
+            setSalvando(true)
+            await aoAdicionar(escolhidos)
+            setSalvando(false)
+          }}
+        >
+          {salvando ? 'Anotando…' : `Anotar ${escolhidos.length} ${escolhidos.length === 1 ? 'pedido' : 'pedidos'}`}
+        </button>
+      </div>
+    </Folha>
+  )
+}
+
+function LucroNoite({ d, fechada, cfg }) {
+  const custo = d.custoIfood + d.custoDiretas
+  return (
+    <div className="lucro-noite">
+      <p className="rotulo-grupo">{fechada ? 'Custo e lucro da noite' : 'Custo e lucro da noite (prévia)'}</p>
+      <div className="pagina-pautada fechamento">
+        <p className="linha-conta"><span>Faturamento<small>iFood {dinheiro(d.ifoodBruto)} + pizzaria {dinheiro(d.diretas)}</small></span><strong>{dinheiro(d.faturamento)}</strong></p>
+        <p className="linha-conta"><span>Taxas do iFood ({numero(cfg.comissao)}%)</span><strong className="tinta-vermelha">− {dinheiro(d.comissao)}</strong></p>
+        <p className="linha-conta"><span>Custo de produção<small>{d.potes} potes e {d.brownies} brownies · iFood {dinheiro(d.custoIfood)}, pizzaria {dinheiro(d.custoDiretas)}</small></span><strong className="tinta-vermelha">− {dinheiro(custo)}</strong></p>
+        <p className="linha-conta"><span>Taxa Boy Realizado</span><strong className="tinta-vermelha">− {dinheiro(d.taxasBoys)}</strong></p>
+        <p className="linha-conta destaque">
+          <span>Lucro da noite</span>
+          <strong className={d.lucroLiquido < 0 ? 'tinta-vermelha' : ''}>{dinheiro(d.lucroLiquido)}</strong>
+        </p>
+      </div>
+      <p className="nota">
+        {fechada ? 'Com o custo de cada produto guardado quando a noite foi fechada.' : 'Com o custo de hoje; fica guardado quando você fechar a noite.'} Não inclui as despesas do mês nem a luz e o gás: isso fica no Relatório → Detalhamento → Dia.
+      </p>
+    </div>
+  )
+}
 
 function Fechamento({ conta, cfg }) {
   const pz = conta.pizzaria

@@ -65,6 +65,21 @@ export const apiReal = {
     )
   },
   // Vários meses: busca em páginas de 1000 (o Supabase corta em 1000 linhas por pedido)
+  // Leitura de fotos (nota do mercado / pedidos do iFood) pela função ler-imagem do Supabase
+  async lerImagem(tipo, imagens, contexto) {
+    const { data, error } = await supabase.functions.invoke('ler-imagem', { body: { tipo, imagens, contexto } })
+    if (error) {
+      let msg = ''
+      try {
+        msg = (await error.context?.json())?.erro || ''
+      } catch {}
+      if (!msg && /not found|404|Failed to send/i.test(error.message || ''))
+        msg = 'A leitura de fotos ainda não foi ligada no Supabase (falta criar a função ler-imagem).'
+      throw new Error(msg || error.message || 'Não consegui ler a foto.')
+    }
+    if (data?.erro) throw new Error(data.erro)
+    return data
+  },
   async intervalo(familiaId, ini, fim) {
     const todas = []
     for (let de = 0; ; de += 1000) {
@@ -502,6 +517,32 @@ export function criarApiDemo() {
       return db.lancamentos
         .filter((l) => l.data >= ini && l.data <= fim)
         .sort((a, b) => (b.data + b.created_at).localeCompare(a.data + a.created_at))
+    },
+    // Demonstração: devolve uma leitura de exemplo (sem chamar a IA)
+    async lerImagem(tipo, _imagens, contexto) {
+      await new Promise((r) => setTimeout(r, 700))
+      if (tipo === 'pedido')
+        return {
+          pedidos: [
+            { cliente: 'Larissa M.', pago_na_entrega: false, valor_total: 59.99, linhas: [{ item: 'combo-3p1', sabores: [{ sabor: 'pote-ninho', quantidade: 2 }, { sabor: 'pote-chocolate', quantidade: 2 }] }] },
+            { cliente: 'Gustavo R.', pago_na_entrega: true, valor_total: 38, linhas: [{ item: 'combo-3b1', sabores: [{ sabor: 'brownie-ovomaltine', quantidade: 1 }, { sabor: 'brownie-brigadeiro', quantidade: 3 }] }] },
+          ],
+        }
+      const acha = (k) => (contexto?.insumos || []).find((i) => i.nome.toLowerCase().includes(k))
+      const lc = acha('condensado')
+      const cr = acha('creme de leite')
+      const ch = acha('chocolate')
+      return {
+        mercado: 'Atacadão Praia Grande',
+        data: hojeISO(),
+        total: 186.37,
+        itens: [
+          { descricao: 'LEITE COND MOCOCA 395G', quantidade: 12, valor_total: 83.88, insumo_id: lc?.id || null, quantidade_insumo: lc ? (lc.unidade === 'kg' ? 4.74 : 12) : null },
+          { descricao: 'CREME LEITE ITALAC 200G', quantidade: 10, valor_total: 32.9, insumo_id: cr?.id || null, quantidade_insumo: cr ? (cr.unidade === 'un' ? 10 : 2) : null },
+          { descricao: 'SABAO PO OMO 1,6KG', quantidade: 1, valor_total: 27.9, insumo_id: null, quantidade_insumo: null },
+          { descricao: 'CHOC PO 50% 1,01KG', quantidade: 1, valor_total: 41.69, insumo_id: ch?.id || null, quantidade_insumo: ch ? (ch.unidade === 'kg' ? 1.01 : 1) : null },
+        ],
+      }
     },
     async intervalo(_f, ini, fim) {
       return db.lancamentos.filter((l) => l.data >= ini && l.data <= fim).sort((a, b) => b.data.localeCompare(a.data))

@@ -2064,3 +2064,93 @@ body:has(.modo-negocio) {
   min-height: 38px;
   padding: 4px 6px;
 }
+
+.lucro-noite {
+  margin-top: 16px;
+}
+
+/* ---------- Leitura de fotos ---------- */
+
+.botao-foto {
+  margin: 4px 0 8px;
+}
+
+.lista-lidos {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.item-lido {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--pauta);
+  background: var(--papel-claro);
+}
+
+.item-lido input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+}
+
+.texto-lido {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.texto-lido small {
+  color: var(--tinta-suave);
+  font-size: 12.5px;
+}
+
+.item-lido.fora {
+  opacity: 0.7;
+}
+
+.campos-lido {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.campos-lido select,
+.campos-lido input,
+.nota-cabeca input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1.5px solid var(--pauta);
+  background: #fff8;
+  font: inherit;
+  font-size: 15px;
+  color: var(--tinta);
+}
+
+.campos-lido select {
+  grid-column: 1 / -1;
+}
+
+.variacao-preco {
+  font-weight: 700;
+}
+
+.outros-lidos summary {
+  font-weight: 600;
+  color: var(--tinta-suave);
+  padding: 6px 0;
+}
+
+.nota-cabeca {
+  margin-bottom: 4px;
+}

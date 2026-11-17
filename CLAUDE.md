@@ -78,6 +78,19 @@ Decisões do Julio (15/11/2026):
    - **Botão "Recebi"** (pedido do Julio, 16/11/2026): o a receber acumula noite a noite; na folha ele escolhe a conta (lembrada em localStorage,
      padrão = primeira conta `banco` da casa) e o app grava a busca + transferência escopo negócio Caixa Benjoca → conta (`origem` 'pix-renan',
      `busca_id`, SQL 08 com on delete cascade).
+   - **Custo e lucro da noite na aba Vendas** (pedido do Julio, 17/11/2026): bloco "Custo e lucro da noite" no passo 5 (`LucroNoite`), usando
+     `detalhamento` com uma noite só (sem despesas do mês e sem luz/gás). Aberta = prévia com custo de hoje; fechada = `resumo.custos`.
+   - **Leitura de fotos com IA** (pedido do Julio, 17/11/2026): Edge Function `supabase/functions/ler-imagem/index.ts` (Deno) chama a API da
+     Anthropic (segredo `ANTHROPIC_API_KEY`, opcional `MODELO`, padrão `claude-sonnet-5-5`) com tool_use para devolver JSON.
+     O Julio cria a função **pelo painel do Supabase** (Edge Functions → editor), com "Verify JWT" ligado. App: `api.lerImagem(tipo, imagens, contexto)`
+     (`supabase.functions.invoke`; demo devolve exemplo), `src/imagens.js` (`prepararImagem` reduz para JPEG ≤1600/2000 px, contextos, `pedidosDaLeitura`).
+     - Vendas: "📷 Ler pedidos de print ou foto da comanda" → folha `PedidosLidos` → anota pedidos com `taxa` null; se já existe nome anotado sem itens
+       (mesmo primeiro nome), completa esse pedido. Pago na entrega = valor da foto (ou calculado).
+     - Estoque: "📷 Ler nota do mercado" → `NotaLida`: itens ligados aos insumos (IA converte para a unidade do insumo), itens que não são da Benjoca
+       ficam recolhidos e podem ser ligados à mão. Salvar: junta linhas do mesmo insumo, grava compras (opcional), troca o preço do insumo pelo da nota
+       **só se a nota não for mais velha que `atualizado_em`**, e lança uma despesa "Insumos" com o total (opcional, `origem` 'nota').
+       Noites fechadas não mudam (custo guardado no `resumo`).
+     - Status (17/11/2026): código pronto; **falta o Julio criar a chave na Anthropic, pôr o segredo e criar a função no Supabase**.
    Plano original:
    - Durante a correria, anotar só o nome do cliente; no fim da noite o app pergunta quem falta completar.
    - Importar pedidos do iFood por print da tela ou foto da comanda impressa (OCR/visão). Nível 3 futuro: API do iFood (exige parceiro com CNPJ/MEI; não verificado).
