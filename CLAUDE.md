@@ -91,7 +91,7 @@ Decisões do Julio (15/11/2026):
        ficam recolhidos e podem ser ligados à mão. Salvar: junta linhas do mesmo insumo, grava compras (opcional), troca o preço do insumo pelo da nota
        **só se a nota não for mais velha que `atualizado_em`**, e lança uma despesa "Insumos" com o total (opcional, `origem` 'nota').
        Noites fechadas não mudam (custo guardado no `resumo`).
-     - Status (17/11/2026): código pronto; **falta o Julio criar a chave na Anthropic, pôr o segredo e criar a função no Supabase**.
+     - Status (17/11/2026): ele pôs o segredo `OPENAI_API_KEY` e criou a função pelo painel. Leitura real ainda não confirmada com foto de verdade.
    Plano original:
    - Durante a correria, anotar só o nome do cliente; no fim da noite o app pergunta quem falta completar.
    - Importar pedidos do iFood por print da tela ou foto da comanda impressa (OCR/visão). Nível 3 futuro: API do iFood (exige parceiro com CNPJ/MEI; não verificado).
