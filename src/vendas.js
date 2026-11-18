@@ -41,7 +41,7 @@ export const CONFIG_PADRAO = {
   browniePizzaria: 10,
   reservaPizzaria: 2, // por unidade vendida na pizzaria
   taxas: [4, 6, 7, 8],
-  saldoBoysInicial: 0,
+  bancoBoysInicial: 0, // Custo − Realizado acumulado antes do app
   aBuscarInicial: 0,
   // Etapa 4: meta e divisão das contas da casa que a Benjoca usa (decisão do Julio, 15/11/2026)
   metaLucro: 10000,
@@ -52,7 +52,11 @@ export const CONFIG_PADRAO = {
 }
 
 export function configNegocio(familia) {
-  return { ...CONFIG_PADRAO, ...(familia?.negocio_config || {}) }
+  const salvo = familia?.negocio_config || {}
+  const cfg = { ...CONFIG_PADRAO, ...salvo }
+  // Antes (até 17/11/2026) o valor inicial era "saldo dos boys" com o sinal ao contrário
+  if (salvo.bancoBoysInicial === undefined && salvo.saldoBoysInicial !== undefined) cfg.bancoBoysInicial = -(+salvo.saldoBoysInicial || 0)
+  return cfg
 }
 
 const r2 = (v) => Math.round(v * 100) / 100
@@ -153,7 +157,10 @@ export function contaNoite(noite, pedidos, cfg) {
   const reserva = r2(reservaIfood + reservaPizzaria)
   const taxas = r2(taxasPedidos + extras.reduce((s, v) => s + v, 0))
   const emMao = r2(valorPizzaria + pagoEntrega)
-  const seu = r2(emMao - reserva)
+  // Regra do Julio (18/11/2026): da noite sai sempre o MENOR entre Taxa Boy Realizado e Custo Taxa Boy.
+  // A diferença vai para o banco dos boys: soma quando o custo passou do realizado, subtrai quando o realizado passou do custo.
+  const descontoBoys = r2(Math.min(reserva, taxas))
+  const seu = r2(emMao - descontoBoys)
   const pegou = +noite?.pegou || 0
 
   return {
@@ -173,7 +180,9 @@ export function contaNoite(noite, pedidos, cfg) {
     reserva: { ifood: reservaIfood, pizzaria: reservaPizzaria, total: reserva },
     taxas: { pedidos: r2(taxasPedidos), extras, total: taxas, entregas: pedidos.filter((p) => +p.taxa > 0).length + extras.length },
     emMao,
-    saldoBoys: r2(reserva - taxas),
+    saldoBoys: r2(reserva - taxas), // antigo (realizado − custo); o banco usa bancoBoys
+    descontoBoys,
+    bancoBoys: r2(taxas - reserva),
     seu,
     pegou,
     aBuscar: r2(seu - pegou),
@@ -182,15 +191,16 @@ export function contaNoite(noite, pedidos, cfg) {
 
 // Saldos que vão se acumulando de uma noite para outra
 export function acumulados(noites, buscas, cfg) {
-  let saldoBoys = +cfg.saldoBoysInicial || 0
+  // Banco dos boys = soma de (Custo − Realizado) das noites. Noites antigas só têm saldoBoys (= Realizado − Custo), então entra com o sinal trocado.
+  let bancoBoys = +cfg.bancoBoysInicial || 0
   let aBuscar = +cfg.aBuscarInicial || 0
   for (const n of noites) {
     if (!n.fechada || !n.resumo) continue
-    saldoBoys += +n.resumo.saldoBoys || 0
+    bancoBoys += n.resumo.bancoBoys !== undefined ? +n.resumo.bancoBoys || 0 : -(+n.resumo.saldoBoys || 0)
     aBuscar += +n.resumo.aBuscar || 0
   }
   for (const b of buscas) aBuscar -= +b.valor
-  return { saldoBoys: r2(saldoBoys), aBuscar: r2(aBuscar) }
+  return { bancoBoys: r2(bancoBoys), aBuscar: r2(aBuscar) }
 }
 
 // A noite que está acontecendo: depois da meia-noite (até 5h) ainda conta como a noite anterior
@@ -268,14 +278,15 @@ export function textoFechamento(noite, conta, acum, cfg) {
   t.push('')
   t.push('💰 *Dinheiro da noite*')
   t.push(`  Em mão: ${R(conta.emMao)}`)
-  t.push(`  Taxa Boy Realizado: −${R(conta.reserva.total)}`)
-  t.push(`  Seu: ${R(conta.seu)}`)
+  t.push(`  Taxa Boy Realizado: ${R(conta.reserva.total)}`)
   t.push(`  Custo Taxa Boy: ${R(conta.taxas.total)} (${conta.taxas.entregas} ${conta.taxas.entregas === 1 ? 'entrega' : 'entregas'})`)
-  t.push(`  Saldo dos boys da noite: ${sinalR(conta.saldoBoys)}`)
+  t.push(`  Desconta (o menor): −${R(conta.descontoBoys ?? conta.reserva.total)}`)
+  t.push(`  Seu: ${R(conta.seu)}`)
+  t.push(`  Banco dos boys da noite: ${sinalR(conta.bancoBoys ?? -conta.saldoBoys)}`)
   t.push(`  Pegou na hora: ${R(conta.pegou)} · a receber do Renan (Pix): ${R(conta.aBuscar)}`)
   if (acum) {
     t.push('')
-    t.push(`🛵 Saldo dos boys acumulado: ${sinalR(acum.saldoBoys)}`)
+    t.push(`🛵 Banco dos boys: ${sinalR(acum.bancoBoys)}`)
     t.push(`💸 A receber do Renan (Pix): ${R(acum.aBuscar)}`)
   }
   return t.join('\n')

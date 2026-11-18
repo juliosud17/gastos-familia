@@ -313,8 +313,8 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
 
       <section className="pagina-pautada saldos-noite" aria-label="Saldos acumulados">
         <p className="linha-guardado sem-toque">
-          <span>🛵 Saldo dos boys</span>
-          <strong className={acum.saldoBoys < 0 ? 'tinta-vermelha' : 'tinta-verde'}>{sinal(acum.saldoBoys)}</strong>
+          <span>🛵 Banco dos boys</span>
+          <strong>{sinal(acum.bancoBoys)}</strong>
         </p>
         <button className="linha-guardado" onClick={() => setFolha('busca')}>
           <span>💸 A receber do Renan (Pix)</span>
@@ -694,7 +694,7 @@ function LucroNoite({ d, fechada, cfg }) {
         <p className="linha-conta"><span>Faturamento<small>iFood {dinheiro(d.ifoodBruto)} + pizzaria {dinheiro(d.diretas)}</small></span><strong>{dinheiro(d.faturamento)}</strong></p>
         <p className="linha-conta"><span>Taxas do iFood ({numero(cfg.comissao)}%)</span><strong className="tinta-vermelha">− {dinheiro(d.comissao)}</strong></p>
         <p className="linha-conta"><span>Custo de produção<small>{d.potes} potes e {d.brownies} brownies · iFood {dinheiro(d.custoIfood)}, pizzaria {dinheiro(d.custoDiretas)}</small></span><strong className="tinta-vermelha">− {dinheiro(custo)}</strong></p>
-        <p className="linha-conta"><span>Taxa Boy Realizado</span><strong className="tinta-vermelha">− {dinheiro(d.taxasBoys)}</strong></p>
+        <p className="linha-conta"><span>Taxa Boy<small>o menor entre Realizado e Custo</small></span><strong className="tinta-vermelha">− {dinheiro(d.taxasBoys)}</strong></p>
         <p className="linha-conta destaque">
           <span>Lucro da noite</span>
           <strong className={d.lucroLiquido < 0 ? 'tinta-vermelha' : ''}>{dinheiro(d.lucroLiquido)}</strong>
@@ -735,11 +735,7 @@ function Fechamento({ conta, cfg }) {
           Taxa Boy Realizado
           <small>{conta.ifood.potesPagos} potes iFood × {numero(cfg.reservaPoteIfood)} + {pz.potes + pz.brownies} un. pizzaria × {numero(cfg.reservaPizzaria)}</small>
         </span>
-        <strong className="tinta-vermelha">− {dinheiro(conta.reserva.total)}</strong>
-      </p>
-      <p className="linha-conta soma">
-        <span>Seu</span>
-        <strong>{dinheiro(conta.seu)}</strong>
+        <strong>{dinheiro(conta.reserva.total)}</strong>
       </p>
       <p className="linha-conta">
         <span>
@@ -749,8 +745,22 @@ function Fechamento({ conta, cfg }) {
         <strong>{dinheiro(conta.taxas.total)}</strong>
       </p>
       <p className="linha-conta">
-        <span>Saldo dos boys da noite<small>Realizado − Custo, vai para o banco de saldo</small></span>
-        <strong className={conta.saldoBoys < 0 ? 'tinta-vermelha' : 'tinta-verde'}>{sinal(conta.saldoBoys)}</strong>
+        <span>
+          Desconta da noite
+          <small>o menor: {conta.descontoBoys === conta.reserva.total ? 'o Realizado' : 'o Custo'}</small>
+        </span>
+        <strong className="tinta-vermelha">− {dinheiro(conta.descontoBoys)}</strong>
+      </p>
+      <p className="linha-conta soma">
+        <span>Seu</span>
+        <strong>{dinheiro(conta.seu)}</strong>
+      </p>
+      <p className="linha-conta">
+        <span>
+          Banco dos boys da noite
+          <small>Custo − Realizado: {conta.bancoBoys >= 0 ? 'soma no banco' : 'tira do banco'}</small>
+        </span>
+        <strong>{sinal(conta.bancoBoys)}</strong>
       </p>
       {conta.ifood.pedidos > 0 && (
         <p className="nota nota-ifood">
@@ -963,7 +973,7 @@ const CAMPOS_AJUSTE = [
   ['potePizzaria', 'Pote na pizzaria'],
   ['browniePizzaria', 'Brownie na pizzaria'],
   ['reservaPizzaria', 'Taxa Boy Realizado por unidade na pizzaria'],
-  ['saldoBoysInicial', 'Saldo dos boys antes do app (pode ser negativo)'],
+  ['bancoBoysInicial', 'Banco dos boys antes do app (pode ser negativo)'],
   ['aBuscarInicial', 'Já tinha a receber do Renan antes do app'],
 ]
 

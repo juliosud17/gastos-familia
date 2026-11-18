@@ -183,7 +183,8 @@ export function detalhamento({ noites, lancamentos, custoSabor, catPorId, cfg, i
     pagoEntrega += r.ifood.pagoEntrega
     pedidos += r.ifood.pedidos
     diretas += r.pizzaria.valor
-    taxasBoys += r.reserva?.total ?? r.taxas.total
+    // Noite nova: o menor entre Realizado e Custo (regra de 18/11/2026); noite antiga: o que valia quando foi fechada
+    taxasBoys += r.descontoBoys ?? r.reserva?.total ?? r.taxas.total
     taxasPagas += r.taxas.total
     const [ci, si] = custoDe(r.ifood.unidades)
     const [cd, sd] = custoDe(r.pizzaria.unidades)
