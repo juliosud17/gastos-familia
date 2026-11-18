@@ -192,8 +192,8 @@ export default function Relatorio({ api, familia, cfg, periodo, catPorId, contaP
             </p>
             <p className="linha-conta"><span>Custo Taxa Boy</span><strong>{dinheiro(somaNoites((r) => r.taxas.total))}</strong></p>
             <p className="linha-conta">
-              <span>Banco dos boys no mês<small>Custo − Realizado das noites</small></span>
-              <strong>{dinheiro(somaNoites((r) => r.bancoBoys ?? -r.saldoBoys))}</strong>
+              <span>Banco dos boys no mês<small>Realizado − Custo das noites</small></span>
+              <strong className={somaNoites((r) => r.saldoBoys) < 0 ? 'tinta-vermelha' : 'tinta-verde'}>{dinheiro(somaNoites((r) => r.saldoBoys))}</strong>
             </p>
           </div>
         )}

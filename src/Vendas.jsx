@@ -314,7 +314,7 @@ export default function Vendas({ api, familia, categorias, contaNegocio, contaDi
       <section className="pagina-pautada saldos-noite" aria-label="Saldos acumulados">
         <p className="linha-guardado sem-toque">
           <span>🛵 Banco dos boys</span>
-          <strong>{sinal(acum.bancoBoys)}</strong>
+          <strong className={acum.bancoBoys < 0 ? 'tinta-vermelha' : 'tinta-verde'}>{sinal(acum.bancoBoys)}</strong>
         </p>
         <button className="linha-guardado" onClick={() => setFolha('busca')}>
           <span>💸 A receber do Renan (Pix)</span>
@@ -758,9 +758,9 @@ function Fechamento({ conta, cfg }) {
       <p className="linha-conta">
         <span>
           Banco dos boys da noite
-          <small>Custo − Realizado: {conta.bancoBoys >= 0 ? 'soma no banco' : 'tira do banco'}</small>
+          <small>Realizado − Custo: {conta.saldoBoys >= 0 ? 'soma no banco' : 'ficou devendo, tira do banco'}</small>
         </span>
-        <strong>{sinal(conta.bancoBoys)}</strong>
+        <strong className={conta.saldoBoys < 0 ? 'tinta-vermelha' : 'tinta-verde'}>{sinal(conta.saldoBoys)}</strong>
       </p>
       {conta.ifood.pedidos > 0 && (
         <p className="nota nota-ifood">

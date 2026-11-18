@@ -79,9 +79,9 @@ Decisões do Julio (15/11/2026):
      padrão = primeira conta `banco` da casa) e o app grava a busca + transferência escopo negócio Caixa Benjoca → conta (`origem` 'pix-renan',
      `busca_id`, SQL 08 com on delete cascade).
    - **Regra do menor valor** (pedido do Julio, 18/11/2026; substitui "dele = em mão − reserva"): da noite sai `descontoBoys = min(Realizado, Custo)`;
-     `seu = em mão − descontoBoys`. **Banco dos boys** = soma de `bancoBoys = Custo − Realizado` (soma quando o custo passou do realizado, tira quando o
-     realizado passou). Noites antigas só têm `saldoBoys` (= Realizado − Custo) e entram com o sinal trocado; `cfg.bancoBoysInicial` (o antigo
-     `saldoBoysInicial` vira o negativo dele em `configNegocio`). Lucro (detalhamento e lucro da noite) desconta `descontoBoys` nas noites novas;
+     `seu = em mão − descontoBoys`. **Banco dos boys** = soma de `saldoBoys = Realizado − Custo` das noites fechadas (+ `cfg.bancoBoysInicial`,
+     que herda o antigo `saldoBoysInicial`): **soma quando o realizado passou do custo, tira quando o custo passou (ele ficou devendo)**
+     — o Julio corrigiu o sinal em 18/11 00h10. Lucro (detalhamento e lucro da noite) desconta `descontoBoys` nas noites novas;
      noites fechadas antes continuam como foram fechadas.
    - **Custo e lucro da noite na aba Vendas** (pedido do Julio, 17/11/2026): bloco "Custo e lucro da noite" no passo 5 (`LucroNoite`), usando
      `detalhamento` com uma noite só (sem despesas do mês e sem luz/gás). Aberta = prévia com custo de hoje; fechada = `resumo.custos`.
